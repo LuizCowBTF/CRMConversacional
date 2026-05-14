@@ -1,5 +1,10 @@
-python>=3.10
-flask>=3.1.8
-flask-sqlalchemy>=3.1.8
-werkzeug>=3.1.8
-python-dotenv>=1.0.0
+Flask==2.3.3
+Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.2
+Werkzeug==2.3.7
+SQLAlchemy==2.0.21
+requests==2.31.0
+python-dotenv==1.0.0
+bcrypt==4.1.2
+python-multipart==0.0.6
+email-validator==2.1.0
