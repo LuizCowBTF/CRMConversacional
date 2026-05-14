@@ -6,11 +6,39 @@
 <div class="page-header">
   <div>
     <h1 class="page-title-h">Preferências do consultor</h1>
-    <p class="page-subtitle">Configure sua cadência de follow-up, seus templates e snippets favoritos.</p>
+    <p class="page-subtitle">Configure sua cadência de follow-up, seus templates e snippets favoritos, e a aparência do sistema.</p>
   </div>
 </div>
 
 <div class="row g-3">
+
+  <!-- 0) DARK MODE / APARÊNCIA (NOVO) -->
+  <div class="col-lg-12">
+    <div class="card-cv">
+      <div class="card-cv-header">
+        <h5 class="mb-0"><i class="bi bi-palette text-brand"></i> Aparência</h5>
+        <span class="muted small">Escolha o tema do sistema</span>
+      </div>
+      <div class="p-3">
+        <div class="d-flex gap-3 flex-wrap">
+          <button id="themeLightBtn" class="btn btn-outline-secondary">
+            <i class="bi bi-sun"></i> Claro
+          </button>
+          <button id="themeDarkBtn" class="btn btn-outline-secondary">
+            <i class="bi bi-moon"></i> Escuro
+          </button>
+          <button id="themeAutoBtn" class="btn btn-outline-secondary">
+            <i class="bi bi-display"></i> Automático (segundo sistema)
+          </button>
+        </div>
+        <div class="alert alert-info mt-3 mb-0 fs-12">
+          <i class="bi bi-info-circle"></i>
+          O tema escuro reduz o cansaço visual e economiza energia em telas OLED.
+          A cor principal da empresa (<span style="color: #fd7e14;">#fd7e14</span>) é mantida em ambos os temas.
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- 1) CADÊNCIA PESSOAL -->
   <div class="col-lg-6">
@@ -165,4 +193,48 @@
     </div>
   </div>
 </div>
+
+<script>
+// Dark Mode Toggle para a página de Preferências
+(function() {
+  // Função para atualizar o tema
+  function setTheme(theme) {
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('theme', 'dark');
+    } else if (theme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+      localStorage.setItem('theme', 'light');
+    } else if (theme === 'auto') {
+      localStorage.removeItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+    }
+  }
+  
+  // Botões da seção de aparência
+  const lightBtn = document.getElementById('themeLightBtn');
+  const darkBtn = document.getElementById('themeDarkBtn');
+  const autoBtn = document.getElementById('themeAutoBtn');
+  
+  if (lightBtn) {
+    lightBtn.addEventListener('click', () => setTheme('light'));
+  }
+  if (darkBtn) {
+    darkBtn.addEventListener('click', () => setTheme('dark'));
+  }
+  if (autoBtn) {
+    autoBtn.addEventListener('click', () => setTheme('auto'));
+  }
+})();
+</script>
+
+<style>
+/* Ajustes extras para os botões da seção de aparência */
+#themeLightBtn:hover, #themeDarkBtn:hover, #themeAutoBtn:hover {
+  transform: scale(1.02);
+  transition: transform 0.2s ease;
+}
+</style>
+
 {% endblock %}

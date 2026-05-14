@@ -3,6 +3,9 @@
    Estilo: WhatsApp corporativo + Linear/Notion + densidade Slack
    ========================================================================= */
 
+/* =========================================================================
+   TEMA CLARO (padrão)
+   ========================================================================= */
 :root {
   --bg: #f5f5f5;
   --bg-soft: #e9edef;
@@ -10,23 +13,74 @@
   --bg-elev-2: #ccc;
   --border: #ccc;
   --border-soft: #ddd;
-  --text: #fd7e14;
-  --text-soft: #aebac1;
+  --text: #111111;  /* ALTERADO: antes estava #fd7e14 (laranja) - isso era um erro */
+  --text-soft: #4a5b6e;
   --text-mute: #8696a0;
-  --brand: #d48262;
-  --brand-soft: #008f72;
-  --brand-light: #d9fdd3;
+  --brand: #fd7e14;  /* COR PRINCIPAL DA EMPRESA */
+  --brand-soft: #e06c0a;
+  --brand-light: #ffe8d9;
   --accent: #53bdeb;
   --warning: #ffb547;
   --danger: #f15c6d;
   --success: #00a884;
   --bubble-out: #005c4b;
-  --bubble-in: #202c33;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,.25);
-  --shadow-md: 0 4px 12px rgba(0,0,0,.3);
+  --bubble-in: #e8edf0;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.1);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.15);
   --radius: 8px;
   --radius-lg: 12px;
   --transition: 150ms cubic-bezier(.4,0,.2,1);
+}
+
+/* =========================================================================
+   TEMA ESCURO (Dark Mode)
+   ========================================================================= */
+[data-theme="dark"] {
+  --bg: #121212;
+  --bg-soft: #1e1e1e;
+  --bg-elev: #2d2d2d;
+  --bg-elev-2: #3a3a3a;
+  --border: #3d3d3d;
+  --border-soft: #2d2d2d;
+  --text: #e4e6eb;
+  --text-soft: #b0b3b8;
+  --text-mute: #8a8d91;
+  --brand: #fd7e14;
+  --brand-soft: #ff8c33;
+  --brand-light: #3d2a1a;
+  --accent: #4fc3f7;
+  --warning: #ffb74d;
+  --danger: #e57373;
+  --success: #4caf50;
+  --bubble-out: #1e3a2f;
+  --bubble-in: #2a2a2a;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.5);
+}
+
+/* Ajustes adicionais para o tema escuro */
+[data-theme="dark"] .modal-content {
+  background: var(--bg-soft);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] .btn-close {
+  filter: invert(1) brightness(2);
+}
+
+[data-theme="dark"] table.x-table tbody tr:hover {
+  background: rgba(255,255,255,.03);
+}
+
+[data-theme="dark"] .stage-pill {
+  opacity: 0.9;
+}
+
+[data-theme="dark"] .chat-window {
+  background: 
+    linear-gradient(rgba(18,18,18,.96), rgba(18,18,18,.96)),
+    radial-gradient(circle at 20% 10%, rgba(253,126,20,.08), transparent 40%),
+    radial-gradient(circle at 80% 90%, rgba(79,195,247,.04), transparent 40%);
 }
 
 * { box-sizing: border-box; }
