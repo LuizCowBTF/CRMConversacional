@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% set active_nav = 'distribuicao' %}
+{% block title %}Distribuição{% endblock %}
+{% block page_title %}Distribuição inteligente de leads{% endblock %}
+
+{% block content %}
+<div class="alert alert-info mb-3" style="font-size:12.5px;">
+  <i class="bi bi-magic"></i>
+  Algoritmo: <b>Round-robin proporcional</b>. A cada novo lead, o sistema escolhe o consultor com menor <i>pressão</i>
+  (recebidos / meta) considerando volume da semana e do dia, e pulando quem está offline.
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <form method="POST">
+      <div class="card-x">
+        <div class="card-title">Metas semanais por consultor</div>
+        <table class="x-table">
+          <thead><tr><th>Consultor</th><th>Status</th><th>Recebidos (7d)</th><th>Pressão</th><th>Meta semanal</th></tr></thead>
+          <tbody>
+            {% for s in stats %}
+            <tr>
+              <td><b>{{ s.user.name }}</b></td>
+              <td><span class="status-dot {% if s.user.is_online %}online{% else %}offline{% endif %}"></span>{% if s.user.is_online %}Online{% else %}Offline{% endif %}</td>
+              <td>{{ s.week_count }}</td>
+              <td>
+                {% set color = 'brand' if s.pressure < 80 else 'warn' if s.pressure < 100 else 'danger' %}
+                <span class="chip {{ color }}">{{ s.pressure }}%</span>
+              </td>
+              <td><input type="number" name="quota_{{ s.user.id }}" value="{{ s.user.weekly_quota }}" class="form-control" style="width:90px;"></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <hr style="border-color:var(--border-soft);">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Mover para "Lead Frio" após (dias sem resposta)</label>
+            <input type="number" name="cold_after_days" value="{{ rule.cold_after_days }}" class="form-control" min="1" max="30">
+          </div>
+          <div class="col-md-6 d-flex align-items-end">
+            <label class="d-flex align-items-center gap-2">
+              <input type="checkbox" name="redistribute_offline" {% if rule.redistribute_offline %}checked{% endif %}>
+              <span>Redistribuir leads se consultor estiver offline</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <button class="btn btn-brand"><i class="bi bi-save"></i> Salvar regras</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card-x">
+      <div class="card-title">Simulador de distribuição</div>
+      <form method="POST" action="{{ url_for('distribuicao_simular') }}">
+        <div class="mb-2">
+          <label class="form-label">Quantos leads simular?</label>
+          <input type="number" name="n_leads" value="10" min="1" max="200" class="form-control">
+        </div>
+        <button class="btn btn-ghost w-100"><i class="bi bi-play"></i> Simular distribuição</button>
+      </form>
+      <small class="text-mute d-block mt-2">
+        Mostra qual consultor receberia cada lead se entrassem agora — sem efetivar nada.
+      </small>
+    </div>
+
+    <div class="card-x mt-3">
+      <div class="card-title">Como funciona</div>
+      <ul class="fs-13 text-soft" style="padding-left:18px;line-height:1.7;">
+        <li>Cada consultor tem uma meta semanal</li>
+        <li>O sistema calcula a <b>pressão</b> = recebidos / meta</li>
+        <li>O próximo lead vai para quem tem <b>menor pressão</b></li>
+        <li>Desempate: quem recebeu menos leads <b>hoje</b></li>
+        <li>Offline = pulado (fallback automático)</li>
+        <li>Roda em tempo real a cada novo lead</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

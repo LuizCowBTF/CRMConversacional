@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Configurações · CRM{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Configurações gerais</h1>
+    <p class="page-subtitle">Regras de distribuição inteligente e comportamento automático do sistema</p>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card-cv">
+      <div class="card-cv-header">
+        <h5 class="mb-0">Distribuição de leads</h5>
+        <span class="muted small">Como o sistema entrega leads novos aos consultores</span>
+      </div>
+      <form method="post" class="p-3">
+        <div class="mb-3">
+          <label class="form-label">Modo de distribuição</label>
+          <select name="mode" class="form-select form-select-dark">
+            <option value="round_robin_proporcional" {% if rule.mode == 'round_robin_proporcional' %}selected{% endif %}>
+              Round-robin proporcional (recomendado)
+            </option>
+            <option value="round_robin_simples" {% if rule.mode == 'round_robin_simples' %}selected{% endif %}>
+              Round-robin simples
+            </option>
+            <option value="manual" {% if rule.mode == 'manual' %}selected{% endif %}>
+              Manual (admin distribui)
+            </option>
+          </select>
+          <div class="form-text muted">
+            O modo proporcional considera a meta semanal, leads recebidos hoje e leads acumulados na semana de cada consultor para evitar concentração.
+          </div>
+        </div>
+
+        <div class="mb-3 form-check form-switch">
+          <input type="checkbox" id="redistribute_offline" name="redistribute_offline"
+                 class="form-check-input" {% if rule.redistribute_offline %}checked{% endif %}>
+          <label class="form-check-label" for="redistribute_offline">
+            Redistribuir automaticamente leads de usuários offline
+          </label>
+          <div class="form-text muted">
+            Quando ativado, leads atribuídos a consultores offline são realocados para o próximo disponível no algoritmo.
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Dias até virar lead frio</label>
+          <input type="number" min="1" max="30" name="cold_after_days"
+                 value="{{ rule.cold_after_days }}" class="form-control form-control-dark" style="max-width:160px">
+          <div class="form-text muted">
+            Após N dias sem resposta com 3+ follow-ups enviados, o lead é movido automaticamente para "Lead frio".
+          </div>
+        </div>
+
+        <button class="btn btn-brand">Salvar configurações</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card-cv mb-3">
+      <div class="card-cv-header">
+        <h5 class="mb-0">Como funciona o algoritmo</h5>
+      </div>
+      <div class="p-3">
+        <ol class="muted small mb-0" style="padding-left:1rem">
+          <li class="mb-2">Calcula a razão <code>recebidos_semana / meta_semanal</code> de cada consultor ativo.</li>
+          <li class="mb-2">Em empate, prioriza quem recebeu menos leads no dia.</li>
+          <li class="mb-2">Em novo empate, usa ID como desempate determinístico.</li>
+          <li class="mb-2">Consultores offline são pulados se a opção acima estiver ativa.</li>
+          <li>Fallback: se ninguém estiver online, atribui ao admin.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card-cv">
+      <div class="card-cv-header">
+        <h5 class="mb-0">Automações ativas</h5>
+      </div>
+      <div class="p-3">
+        <div class="d-flex justify-content-between py-2 border-bottom border-secondary">
+          <span class="small">Resposta inbound → "Em conversação"</span>
+          <span class="badge bg-success">on</span>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-bottom border-secondary">
+          <span class="small">3+ FUPs sem resposta → "Lead frio"</span>
+          <span class="badge bg-success">on</span>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-bottom border-secondary">
+          <span class="small">Auditoria de toda movimentação</span>
+          <span class="badge bg-success">on</span>
+        </div>
+        <div class="d-flex justify-content-between py-2">
+          <span class="small">SLA tracking inbound/outbound</span>
+          <span class="badge bg-success">on</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

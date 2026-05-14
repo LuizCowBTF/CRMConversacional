@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% set active_nav = 'pipeline' %}
+{% block title %}Pipeline{% endblock %}
+{% block page_title %}Pipeline Comercial{% endblock %}
+
+{% block content %}
+<div class="alert alert-info mb-3" style="font-size:12.5px;">
+  <i class="bi bi-info-circle"></i> Arraste e solte os cards entre as colunas para mover leads entre estágios. Toda movimentação fica auditada.
+</div>
+
+<div class="kanban-board">
+  {% for sid, label in PIPELINE_STAGES %}
+  <div class="kanban-col">
+    <div class="kanban-col-header">
+      <span class="name">{{ label }}</span>
+      <span class="count">{{ columns[sid]|length }}</span>
+    </div>
+    <div class="kanban-col-body" data-stage="{{ sid }}">
+      {% for lead in columns[sid] %}
+      <div class="kanban-card" data-lead-id="{{ lead.id }}">
+        <div class="card-name">{{ lead.name }}</div>
+        <div class="card-meta">
+          {% if lead.company %}{{ lead.company }}<br>{% endif %}
+          {% if lead.owner %}<i class="bi bi-person"></i> {{ lead.owner.name }}{% endif %}
+        </div>
+        <div class="card-tags">
+          {% if lead.sla_minutes and lead.sla_minutes > 60 %}
+            <span class="chip danger">⏱ SLA</span>
+          {% endif %}
+          {% if lead.source %}<span class="chip">{{ lead.source }}</span>{% endif %}
+        </div>
+        <div style="margin-top:8px;">
+          <a href="{{ url_for('conversas', lead=lead.id) }}" class="btn btn-sm btn-ghost" style="font-size:11px;padding:2px 8px;">
+            <i class="bi bi-chat"></i> Abrir
+          </a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

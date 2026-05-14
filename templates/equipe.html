@@ -1,0 +1,434 @@
+{% extends 'base.html' %}
+{% block title %}Equipe · CRM{% endblock %}
+{% block page_title %}Equipe{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title-h">
+      {% if focus_user %}
+        Olhando como: <span class="text-brand">{{ focus_user.name }}</span>
+        {% if focus_user.is_blocked %}<span class="badge bg-danger ms-2">BLOQUEADO</span>{% endif %}
+      {% else %}
+        Visão da equipe
+      {% endif %}
+    </h1>
+    <p class="page-subtitle">
+      {% if focus_user %}
+        Você está vendo as conversas e leads de {{ focus_user.name }}.
+        <a href="{{ url_for('equipe') }}" class="text-brand">← Voltar para visão geral</a>
+      {% else %}
+        Acompanhe cada consultor. Clique em "Ver conversas" para abrir a fila individual e visualizar trocas em tempo real.
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+{% if not focus_user %}
+{# Grid de cards com KPIs por consultor #}
+<div class="team-grid">
+  {% for c in consultor_data %}
+  <div class="team-card {% if c.user.is_blocked %}blocked{% endif %}">
+    <div class="team-card-head">
+      <div class="avatar {% if c.user.is_blocked %}avatar-blocked{% endif %}">{{ c.user.name[0]|upper }}</div>
+      <div class="flex-grow-1">
+        <div class="team-name">
+          {{ c.user.name }}
+          <span class="status-dot {% if c.user.is_online %}online{% else %}offline{% endif %}"></span>
+        </div>
+        <div class="team-meta">
+          Meta: {{ c.user.weekly_quota }}/sem
+          {% if c.user.is_blocked %}· <span class="text-danger">⛔ {{ c.user.blocked_reason or 'bloqueado' }}</span>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="team-kpis">
+      <div class="kpi-mini">
+        <span class="kpi-mini-value">{{ c.leads_today }}</span>
+        <span class="kpi-mini-label">hoje</span>
+      </div>
+      <div class="kpi-mini">
+        <span class="kpi-mini-value">{{ c.leads_week }}</span>
+        <span class="kpi-mini-label">7 dias</span>
+      </div>
+      <div class="kpi-mini">
+        <span class="kpi-mini-value">{{ c.em_conversa }}</span>
+        <span class="kpi-mini-label">em conversa</span>
+      </div>
+      <div class="kpi-mini">
+        <span class="kpi-mini-value text-brand">{{ c.fechados }}</span>
+        <span class="kpi-mini-label">fechados</span>
+      </div>
+    </div>
+
+    {% if c.sla_broken > 0 %}
+    <div class="team-warning">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      {{ c.sla_broken }} lead{% if c.sla_broken > 1 %}s{% endif %} com SLA quebrado
+    </div>
+    {% endif %}
+
+    <div class="team-finance">
+      <div>
+        <span class="text-mute fs-12">Em aberto</span>
+        <div class="fs-13 text-accent">R$ {{ '{:,.0f}'.format(c.revenue_open).replace(',', '.') }}</div>
+      </div>
+      <div>
+        <span class="text-mute fs-12">Fechado</span>
+        <div class="fs-13 text-brand">R$ {{ '{:,.0f}'.format(c.revenue_closed).replace(',', '.') }}</div>
+      </div>
+    </div>
+
+    <div class="team-actions">
+      <a href="{{ url_for('equipe', consultor=c.user.id) }}" class="btn btn-sm btn-brand flex-grow-1">
+        <i class="bi bi-eye"></i> Ver conversas
+      </a>
+      <button type="button" class="btn btn-sm btn-ghost" data-bs-toggle="modal"
+              data-bs-target="#blockModal{{ c.user.id }}"
+              title="{% if c.user.is_blocked %}Desbloquear{% else %}Bloquear{% endif %} corretor">
+        <i class="bi bi-{% if c.user.is_blocked %}unlock-fill text-success{% else %}lock-fill{% endif %}"></i>
+      </button>
+    </div>
+
+    <!-- Modal de bloqueio -->
+    <div class="modal fade" id="blockModal{{ c.user.id }}" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form method="post" action="{{ url_for('user_toggle_block', uid=c.user.id) }}">
+            <div class="modal-header">
+              <h5 class="modal-title">
+                {% if c.user.is_blocked %}Desbloquear{% else %}Bloquear{% endif %} {{ c.user.name }}
+              </h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              {% if c.user.is_blocked %}
+              <p>Confirma desbloqueio? O corretor voltará a receber leads e poderá enviar mensagens.</p>
+              {% else %}
+              <p class="text-warning">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                Ao bloquear, {{ c.user.name }} para de receber novos leads e não consegue enviar mensagens.
+                Os leads atuais permanecem com ele.
+              </p>
+              <label class="form-label">Motivo (opcional)</label>
+              <input type="text" name="reason" class="form-control" placeholder="ex: férias, treinamento, suspeita de fraude">
+              {% endif %}
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+              <button class="btn btn-{% if c.user.is_blocked %}success{% else %}danger{% endif %}">
+                {% if c.user.is_blocked %}Desbloquear{% else %}Bloquear{% endif %}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state p-4 text-center text-mute">
+    Nenhum consultor sob sua gestão.
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+{# Foco em 1 consultor: lista de conversas dele com modal de visualização #}
+<div class="row g-2">
+  {% for lead in focus_leads %}
+  <div class="col-md-6 col-lg-4">
+    <div class="conv-card" onclick="openConversaModal({{ lead.id }})">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <div class="avatar">{{ lead.initial }}</div>
+        <div class="flex-grow-1">
+          <div class="fw-semibold">{{ lead.name }}</div>
+          <div class="text-mute fs-12">
+            {{ lead.phone or '—' }}
+            {% if lead.budget %}· R$ {{ '%.0f'|format(lead.budget) }}{% endif %}
+          </div>
+        </div>
+        <span class="stage-pill stage-{{ lead.stage }}">{{ STAGE_LABELS.get(lead.stage, lead.stage) }}</span>
+      </div>
+      <div class="text-mute fs-12">
+        {% if lead.messages %}
+          {{ lead.messages[-1].body[:60] }}{% if lead.messages[-1].body|length > 60 %}...{% endif %}
+        {% else %}Sem mensagens{% endif %}
+      </div>
+      <div class="text-mute fs-11 mt-1">
+        <i class="bi bi-clock"></i>
+        {% if lead.last_message_at %}{{ lead.last_message_at.strftime('%d/%m %H:%M') }}{% else %}—{% endif %}
+        {% if lead.sla_minutes and lead.sla_minutes > 60 %}
+        · <span class="text-warning">SLA {{ lead.sla_minutes }}min</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="col-12">
+    <div class="empty-state p-4 text-center text-mute">
+      Este consultor ainda não tem leads.
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- MODAL: Visualizar Conversa -->
+<div class="modal fade modal-conversa" id="conversaModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="flex-grow-1">
+          <h5 class="modal-title">Visualizar conversa</h5>
+          <div class="text-mute fs-12 mt-1" id="conversaLeadInfo">—</div>
+        </div>
+        <div class="d-flex gap-1">
+          <button type="button" class="btn btn-sm btn-ghost" id="btnAbrirConversa" title="Abrir conversa completa">
+            <i class="bi bi-arrow-right-circle"></i> Abrir
+          </button>
+          <button type="button" class="btn btn-sm btn-warning" id="btnRedistribuir" title="Redistribuir lead">
+            <i class="bi bi-arrow-left-right"></i> Redistribuir
+          </button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+      </div>
+
+      <div class="modal-body" id="conversaModalBody">
+        <div class="text-center text-mute py-5">
+          <div class="spinner-border spinner-border-sm" role="status"></div>
+          Carregando conversa…
+        </div>
+      </div>
+
+      <div class="modal-footer" id="conversaModalFooter">
+        <form id="quickSendForm" class="d-flex gap-2 w-100">
+          <input type="text" id="quickSendBody" class="form-control" placeholder="Enviar mensagem como gestor…">
+          <button type="submit" class="btn btn-brand"><i class="bi bi-send-fill"></i> Enviar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Redistribuir -->
+<div class="modal fade" id="redistribuirModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="redistribuirForm" method="post">
+        <div class="modal-header">
+          <h5 class="modal-title">Redistribuir lead</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-mute fs-13">Atualmente atribuído a: <b id="redistribCurrentOwner">—</b></p>
+          <label class="form-label">Transferir para</label>
+          <select name="owner_id" class="form-select" required>
+            {% for c in consultor_data %}
+              {% if not c.user.is_blocked %}
+              <option value="{{ c.user.id }}">{{ c.user.name }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+          <div class="form-text text-mute">Deixe em branco e clique em "Auto" para usar o algoritmo de distribuição.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-brand">Transferir</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.team-card {
+  background: var(--bg-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.team-card.blocked { border-color: rgba(241,92,109,.35); }
+.team-card-head { display: flex; align-items: center; gap: 10px; }
+.team-card .avatar {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--brand) 0%, #00d4a0 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; color: #fff; font-size: 16px;
+  flex-shrink: 0;
+}
+.team-card .avatar.avatar-blocked {
+  background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+}
+.team-name { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+.team-meta { font-size: 11.5px; color: var(--text-mute); }
+
+.team-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
+}
+.kpi-mini { display: flex; flex-direction: column; align-items: center; }
+.kpi-mini-value { font-size: 18px; font-weight: 700; line-height: 1.1; }
+.kpi-mini-label { font-size: 10px; color: var(--text-mute); text-transform: uppercase; letter-spacing: .3px; }
+
+.team-warning {
+  font-size: 12px;
+  color: var(--warning);
+  background: rgba(255,181,71,.08);
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+
+.team-finance {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.team-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.conv-card {
+  background: var(--bg-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.conv-card:hover {
+  border-color: var(--brand);
+  background: var(--bg-elev);
+}
+
+/* Modal Conversa */
+.modal-conversa .modal-content {
+  background: var(--bg-soft);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.modal-conversa .modal-body {
+  background: var(--bg);
+  min-height: 400px;
+  max-height: 60vh;
+}
+.modal-conversa .msg-row {
+  display: flex;
+  margin: 8px 0;
+}
+.modal-conversa .msg-row.in { justify-content: flex-start; }
+.modal-conversa .msg-row.out { justify-content: flex-end; }
+.modal-conversa .msg-bubble {
+  max-width: 70%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bubble-in);
+  font-size: 13.5px;
+  line-height: 1.4;
+  position: relative;
+}
+.modal-conversa .msg-row.out .msg-bubble { background: var(--bubble-out); }
+.modal-conversa .msg-meta {
+  font-size: 10.5px;
+  color: var(--text-mute);
+  margin-top: 4px;
+}
+.modal-conversa .form-control { background: var(--bg-elev); color: var(--text); border-color: var(--border); }
+
+.text-accent { color: var(--accent); }
+</style>
+
+<script>
+let _currentLeadId = null;
+
+async function openConversaModal(leadId) {
+  _currentLeadId = leadId;
+  const modal = new bootstrap.Modal(document.getElementById('conversaModal'));
+  modal.show();
+  const body = document.getElementById('conversaModalBody');
+  const info = document.getElementById('conversaLeadInfo');
+  body.innerHTML = '<div class="text-center text-mute py-5"><div class="spinner-border spinner-border-sm" role="status"></div> Carregando…</div>';
+
+  try {
+    const r = await fetch(`/api/lead/${leadId}/thread`);
+    if (!r.ok) {
+      body.innerHTML = '<div class="alert alert-danger">Sem permissão ou erro ao carregar.</div>';
+      return;
+    }
+    const data = await r.json();
+    const l = data.lead;
+    info.innerHTML = `<b>${escapeHtml(l.name)}</b> · ${l.phone || '—'} · Owner: <span class="text-brand">${escapeHtml(l.owner||'—')}</span> · Estágio: <span class="text-warning">${escapeHtml(l.stage_label)}</span>${l.budget ? ' · R$ '+l.budget.toFixed(0) : ''}`;
+
+    // Botões da topbar
+    document.getElementById('btnAbrirConversa').onclick = () => location.href = `/conversas?lead=${leadId}`;
+    document.getElementById('btnRedistribuir').onclick = () => {
+      document.getElementById('redistribuirForm').action = `/lead/${leadId}/redistribuir`;
+      document.getElementById('redistribCurrentOwner').textContent = l.owner || '—';
+      new bootstrap.Modal(document.getElementById('redistribuirModal')).show();
+    };
+
+    // Quick send
+    document.getElementById('quickSendForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const body = document.getElementById('quickSendBody').value.trim();
+      if (!body) return;
+      const fd = new FormData();
+      fd.append('body', body);
+      fd.append('kind', 'text');
+      const resp = await fetch(`/conversas/${leadId}/send`, {method:'POST', body: fd});
+      if (resp.ok || resp.redirected) {
+        document.getElementById('quickSendBody').value = '';
+        openConversaModal(leadId); // recarrega
+      }
+    };
+
+    // Renderiza mensagens
+    if (data.messages.length === 0) {
+      body.innerHTML = '<div class="text-center text-mute py-5">Sem mensagens ainda.</div>';
+      return;
+    }
+    body.innerHTML = data.messages.map(m => {
+      const isNote = m.kind === 'note';
+      if (isNote) {
+        return `<div class="alert alert-warning py-2 px-3 fs-12 my-2"><i class="bi bi-sticky"></i> <b>${escapeHtml(m.sender)}:</b> ${escapeHtml(m.body)} <span class="text-mute ms-2">${m.created_at}</span></div>`;
+      }
+      const attHtml = (m.attachments || []).map(a => {
+        if (a.kind === 'image') return `<a href="${a.url}" target="_blank"><img src="${a.url}" style="max-width:240px;max-height:200px;border-radius:6px;display:block;margin-bottom:4px;"></a>`;
+        if (a.kind === 'audio') return `<audio controls src="${a.url}" style="width:240px;"></audio>`;
+        return `<a href="${a.url}" target="_blank" class="text-brand"><i class="bi bi-file-earmark"></i> ${escapeHtml(a.filename)}</a>`;
+      }).join('');
+      return `<div class="msg-row ${m.direction}">
+        <div class="msg-bubble">
+          ${attHtml}
+          ${escapeHtml(m.body)}
+          <div class="msg-meta">${escapeHtml(m.sender)} · ${m.created_at}</div>
+        </div>
+      </div>`;
+    }).join('');
+    body.scrollTop = body.scrollHeight;
+  } catch(err) {
+    console.error(err);
+    body.innerHTML = '<div class="alert alert-danger">Erro: ' + err.message + '</div>';
+  }
+}
+
+function escapeHtml(s) {
+  return (s == null ? '' : String(s)).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+</script>
+{% endblock %}

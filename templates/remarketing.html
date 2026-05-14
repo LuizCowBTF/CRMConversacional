@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block title %}Remarketing{% endblock %}
+{% block page_title %}Remarketing{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title-h">Remarketing</h1>
+    <p class="page-subtitle">
+      Leads que esgotaram a cadência de WhatsApp e precisam ser trabalhados por ligação.
+      O sistema move automaticamente após 3 dias sem resposta e {{ current_user.cadence_per_day * 3 }}+ FUPs enviados.
+    </p>
+  </div>
+</div>
+
+{% if prestes %}
+<div class="card-cv mb-3 border-warning-soft">
+  <div class="card-cv-header">
+    <h5 class="mb-0"><i class="bi bi-hourglass-split text-warning"></i> Prestes a entrar no remarketing</h5>
+    <span class="muted small">Leads com 2+ FUPs sem resposta. Reforce o atendimento antes da cadência esgotar.</span>
+  </div>
+  <div class="remarketing-list">
+    {% for l in prestes %}
+    <a href="{{ url_for('conversas', lead=l.id) }}" class="remarketing-row text-decoration-none">
+      <div class="avatar">{{ l.initial }}</div>
+      <div class="rm-body">
+        <div class="rm-name">{{ l.name }}</div>
+        <div class="rm-meta text-mute">
+          {{ l.sent_without_response }} FUPs sem resposta · {{ l.owner.name if l.owner else '—' }}
+        </div>
+      </div>
+      <span class="chip warn">⚠ prestes</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card-cv">
+  <div class="card-cv-header d-flex align-items-center justify-content-between">
+    <div>
+      <h5 class="mb-0"><i class="bi bi-telephone-outbound-fill"></i> Para ligar ({{ leads|length }})</h5>
+      <span class="muted small">Estes leads esgotaram a cadência de WhatsApp. Faça uma ligação ou reative.</span>
+    </div>
+  </div>
+
+  <div class="remarketing-list">
+    {% for l in leads %}
+    <div class="remarketing-row">
+      <div class="avatar cold">{{ l.initial }}</div>
+      <div class="rm-body">
+        <div class="rm-name">
+          {{ l.name }}
+          {% if l.budget %}<span class="chip brand fs-11 ms-2">R$ {{ '%.0f'|format(l.budget) }}</span>{% endif %}
+        </div>
+        <div class="rm-meta text-mute">
+          <i class="bi bi-telephone"></i> {{ l.phone or '—' }}
+          {% if l.company %} · {{ l.company }}{% endif %}
+          · Movido em {{ l.moved_to_remarketing_at.strftime('%d/%m %H:%M') }}
+          · <b>{{ l.sent_without_response }} FUPs</b> sem resposta
+        </div>
+      </div>
+      <div class="rm-actions d-flex gap-1">
+        <a href="tel:{{ l.phone }}" class="btn btn-sm btn-brand" title="Ligar"><i class="bi bi-telephone"></i></a>
+        <a href="{{ url_for('conversas', lead=l.id) }}" class="btn btn-sm btn-ghost" title="Conversa"><i class="bi bi-chat"></i></a>
+        <button class="btn btn-sm btn-ghost" data-bs-toggle="modal" data-bs-target="#callModal{{ l.id }}" title="Registrar ligação">
+          <i class="bi bi-mic"></i>
+        </button>
+        <form method="POST" action="{{ url_for('remarketing_reactivate', lead_id=l.id) }}" style="margin:0;">
+          <button class="btn btn-sm btn-ghost" title="Reativar (voltar ao fluxo)"><i class="bi bi-arrow-counterclockwise"></i></button>
+        </form>
+      </div>
+
+      <!-- Modal de registrar ligação -->
+      <div class="modal fade" id="callModal{{ l.id }}" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <form method="POST" action="{{ url_for('remarketing_call_done', lead_id=l.id) }}">
+              <div class="modal-header">
+                <h5 class="modal-title">Registrar ligação · {{ l.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <label class="form-label">O que aconteceu na ligação?</label>
+                <textarea name="note" class="form-control" rows="3" placeholder="ex: Atendeu, vai pensar mais um dia. Retornar quinta às 10h." required></textarea>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+                <button class="btn btn-brand">Registrar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-state p-4 text-center">
+      <i class="bi bi-emoji-smile fs-1 text-mute"></i>
+      <div class="text-mute mt-2">Nenhum lead em remarketing. Bom trabalho!</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

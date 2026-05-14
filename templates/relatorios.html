@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% set active_nav = 'relatorios' %}
+{% block title %}Relatórios{% endblock %}
+{% block page_title %}Relatórios operacionais{% endblock %}
+
+{% block content %}
+<div class="card-x mb-3">
+  <div class="card-title">Performance por consultor</div>
+  <table class="x-table">
+    <thead>
+      <tr>
+        <th>Consultor</th><th>Total</th><th>7 dias</th><th>Responderam</th><th>Taxa resp.</th>
+        <th>Parados</th><th>Frios</th><th>Fechados</th><th>Conversão</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in report %}
+      <tr>
+        <td><b>{{ r.user.name }}</b></td>
+        <td>{{ r.total }}</td>
+        <td>{{ r.week }}</td>
+        <td>{{ r.responded }}</td>
+        <td>
+          {% set c = 'brand' if r.response_rate >= 50 else 'warn' if r.response_rate >= 25 else 'danger' %}
+          <span class="chip {{ c }}">{{ r.response_rate }}%</span>
+        </td>
+        <td><span class="chip warn">{{ r.parados }}</span></td>
+        <td><span class="chip danger">{{ r.cold }}</span></td>
+        <td><b class="text-brand">{{ r.closed }}</b></td>
+        <td>
+          {% set c = 'brand' if r.conversion >= 10 else 'warn' if r.conversion >= 5 else 'danger' %}
+          <span class="chip {{ c }}">{{ r.conversion }}%</span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card-x">
+  <div class="card-title">Gargalos do funil</div>
+  {% for label, count in stage_totals.items() %}
+    {% set total = stage_totals.values()|sum %}
+    <div class="d-flex justify-content-between mb-1">
+      <span>{{ label }}</span>
+      <span class="fw-600">{{ count }}</span>
+    </div>
+    <div style="height:6px;background:var(--bg-elev);border-radius:3px;margin-bottom:14px;overflow:hidden;">
+      <div style="height:100%;background:var(--brand);width:{{ (count / total * 100) if total else 0 }}%;"></div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

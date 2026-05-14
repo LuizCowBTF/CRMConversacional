@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% set active_nav = 'distribuicao' %}
+{% block title %}Simulação{% endblock %}
+{% block page_title %}Simulação de distribuição — {{ n }} leads{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('distribuicao') }}" class="btn btn-ghost btn-sm mb-3"><i class="bi bi-arrow-left"></i> Voltar</a>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card-x">
+      <div class="card-title">Resumo da distribuição</div>
+      {% for name, count in summary.items() %}
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span>{{ name }}</span>
+        <span class="chip brand">{{ count }} leads</span>
+      </div>
+      <div style="height:6px;background:var(--bg-elev);border-radius:3px;margin-bottom:12px;overflow:hidden;">
+        <div style="height:100%;background:var(--brand);width:{{ (count / n * 100) }}%;"></div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card-x">
+      <div class="card-title">Sequência de atribuição</div>
+      <table class="x-table">
+        <thead><tr><th width="60">#</th><th>Consultor</th></tr></thead>
+        <tbody>
+          {% for s in sequence %}
+          <tr>
+            <td><span class="chip">{{ s.idx }}</span></td>
+            <td><b>{{ s.user }}</b></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

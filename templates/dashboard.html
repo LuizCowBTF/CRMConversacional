@@ -1,0 +1,375 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard · CRM{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex flex-wrap align-items-end justify-content-between gap-3">
+    <div>
+      <h1 class="page-title-h">
+        {% if current_user.role == 'lider' %}
+          Dashboard da equipe
+        {% elif current_user.role == 'admin' %}
+          Visão operacional
+        {% elif current_user.role == 'master' %}
+          Visão geral da operação
+        {% elif current_user.role == 'coordenador' %}
+          Performance dos meus times
+        {% else %}
+          Olá, {{ current_user.name }}
+        {% endif %}
+      </h1>
+      <p class="page-subtitle">
+        Período: <b class="text-brand">{{ date_from.strftime('%d/%m/%Y') }}</b> →
+        <b class="text-brand">{{ date_to.strftime('%d/%m/%Y') }}</b>
+        {% if filter_user_id %}
+          {% set fu = visible_consultants|selectattr('id', 'equalto', filter_user_id)|first %}
+          {% if fu %} · Consultor: <b class="text-brand">{{ fu.name }}</b>{% endif %}
+        {% endif %}
+        {% if is_aggregated_view %}
+          · <span class="badge bg-secondary">Modo agregado · sem conteúdo de conversas</span>
+        {% endif %}
+      </p>
+    </div>
+
+    <!-- FILTROS -->
+    <form method="GET" action="{{ url_for('dashboard') }}" class="dashboard-filters">
+      <div class="period-tabs">
+        <a href="{{ url_for('dashboard', periodo='today', consultor=filter_user_id) }}"
+           class="period-tab {% if periodo == 'today' %}active{% endif %}">Hoje</a>
+        <a href="{{ url_for('dashboard', periodo='7d', consultor=filter_user_id) }}"
+           class="period-tab {% if periodo == '7d' %}active{% endif %}">7 dias</a>
+        <a href="{{ url_for('dashboard', periodo='30d', consultor=filter_user_id) }}"
+           class="period-tab {% if periodo == '30d' %}active{% endif %}">30 dias</a>
+        <a href="{{ url_for('dashboard', periodo='month', consultor=filter_user_id) }}"
+           class="period-tab {% if periodo == 'month' %}active{% endif %}">Mês</a>
+        <button type="button" class="period-tab {% if periodo == 'custom' %}active{% endif %}"
+                onclick="document.getElementById('customRange').classList.toggle('d-none')">
+          Custom <i class="bi bi-calendar3"></i>
+        </button>
+      </div>
+
+      <div id="customRange" class="d-flex gap-1 ms-2 {% if periodo != 'custom' %}d-none{% endif %}">
+        <input type="hidden" name="periodo" value="custom">
+        <input type="date" name="de" value="{{ date_from.strftime('%Y-%m-%d') }}" class="form-control form-control-sm">
+        <input type="date" name="ate" value="{{ date_to.strftime('%Y-%m-%d') }}" class="form-control form-control-sm">
+        {% if filter_user_id %}<input type="hidden" name="consultor" value="{{ filter_user_id }}">{% endif %}
+        <button class="btn btn-sm btn-brand"><i class="bi bi-check"></i></button>
+      </div>
+
+      {% if visible_consultants %}
+      <select name="consultor" onchange="this.form.submit()"
+              class="form-select form-select-sm ms-2" style="max-width:180px;">
+        <option value="">Todos os consultores</option>
+        {% for c in visible_consultants %}
+        <option value="{{ c.id }}" {% if filter_user_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+      <input type="hidden" name="periodo" value="{{ periodo }}">
+      {% if periodo == 'custom' %}
+        <input type="hidden" name="de" value="{{ date_from.strftime('%Y-%m-%d') }}">
+        <input type="hidden" name="ate" value="{{ date_to.strftime('%Y-%m-%d') }}">
+      {% endif %}
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<!-- KPIs operacionais -->
+<div class="kpi-grid mb-3">
+  <div class="kpi-card">
+    <div class="kpi-label">Leads no período</div>
+    <div class="kpi-value">{{ total_periodo }}</div>
+    <div class="kpi-trend">{{ leads_today }} hoje · {{ total_leads }} total</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Ativos</div>
+    <div class="kpi-value">{{ active }}</div>
+    <div class="kpi-trend text-mute">em conversação / cotação</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Taxa de resposta</div>
+    <div class="kpi-value">{{ response_rate }}%</div>
+    <div class="kpi-trend text-mute">leads que responderam</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Taxa de conversão</div>
+    <div class="kpi-value">{{ conversion_rate }}%</div>
+    <div class="kpi-trend text-mute">{{ closed }} fechados de {{ total_leads }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">SLA médio</div>
+    <div class="kpi-value">{{ avg_response_time or '—' }}<small class="fs-12 text-mute"> min</small></div>
+    <div class="kpi-trend text-mute">tempo de 1ª resposta</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Frios</div>
+    <div class="kpi-value text-danger">{{ cold }}</div>
+    <div class="kpi-trend text-mute">precisam reativar</div>
+  </div>
+</div>
+
+<!-- KPIs Financeiros (resumo do período) -->
+<div class="card-cv mb-3">
+  <div class="card-cv-header">
+    <h5 class="mb-0"><i class="bi bi-cash-stack text-brand"></i> Faturamento estipulado</h5>
+    <span class="muted small">Baseado no valor da cotação (ou orçamento) de cada lead</span>
+  </div>
+  <div class="p-3">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="finance-card finance-potential">
+          <div class="finance-label">Potencial em aberto</div>
+          <div class="finance-value">R$ {{ '{:,.2f}'.format(revenue_potential).replace(',', 'X').replace('.', ',').replace('X', '.') }}</div>
+          <div class="finance-sub">leads ativos no funil</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="finance-card finance-closed">
+          <div class="finance-label">Fechado no período</div>
+          <div class="finance-value">R$ {{ '{:,.2f}'.format(revenue_closed).replace(',', 'X').replace('.', ',').replace('X', '.') }}</div>
+          <div class="finance-sub">{{ closed }} negócios concluídos</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="finance-card finance-lost">
+          <div class="finance-label">Perdido (frios)</div>
+          <div class="finance-value">R$ {{ '{:,.2f}'.format(revenue_lost).replace(',', 'X').replace('.', ',').replace('X', '.') }}</div>
+          <div class="finance-sub">{{ cold }} leads esfriaram</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VALOR POR PIPE -->
+<div class="card-cv mb-3">
+  <div class="card-cv-header">
+    <h5 class="mb-0"><i class="bi bi-kanban-fill text-brand"></i> Valor por etapa do funil</h5>
+    <span class="muted small">Quantidade de leads e valor potencial acumulado em cada etapa</span>
+  </div>
+  <div class="p-3">
+    <div class="pipe-value-grid">
+      {% for sid, label in PIPELINE_STAGES %}
+      {% set count = stages_count.get(sid, 0) %}
+      {% set value = stages_value.get(sid, 0) %}
+      <div class="pipe-value-card stage-{{ sid }}">
+        <div class="pipe-value-label">{{ label }}</div>
+        <div class="pipe-value-num">{{ count }} <small class="text-mute">lead{% if count != 1 %}s{% endif %}</small></div>
+        <div class="pipe-value-money">R$ {{ '{:,.0f}'.format(value).replace(',', '.') }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Distribuição por estágio (gráfico de barras) -->
+  <div class="col-lg-7">
+    <div class="card-cv h-100">
+      <div class="card-cv-header">
+        <h5 class="mb-0"><i class="bi bi-bar-chart-line"></i> Distribuição por estágio</h5>
+      </div>
+      <div class="p-3">
+        {% for sid, label in PIPELINE_STAGES %}
+        {% set count = stages_count.get(sid, 0) %}
+        {% set pct = (count / total_leads * 100) if total_leads else 0 %}
+        <div class="stage-bar mb-2">
+          <div class="d-flex justify-content-between mb-1">
+            <span class="fs-13">{{ label }}</span>
+            <span class="fs-13 text-soft">
+              <b>{{ count }}</b>
+              {% if stages_value.get(sid, 0) > 0 %}
+              <span class="text-mute"> · R$ {{ '{:,.0f}'.format(stages_value.get(sid, 0)).replace(',', '.') }}</span>
+              {% endif %}
+            </span>
+          </div>
+          <div class="progress-dark">
+            <div class="progress-fill stage-fill-{{ sid }}" style="width: {{ pct }}%"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Origem -->
+  <div class="col-lg-5">
+    {% if sources %}
+    <div class="card-cv h-100">
+      <div class="card-cv-header">
+        <h5 class="mb-0"><i class="bi bi-funnel"></i> Origem dos leads</h5>
+        <span class="muted small">Top 5 do período</span>
+      </div>
+      <div class="p-3">
+        {% for src, c in sources %}
+        <div class="d-flex justify-content-between align-items-center py-2 border-bottom border-secondary">
+          <span class="fs-13">{{ src or 'sem origem' }}</span>
+          <span class="badge bg-secondary">{{ c }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="card-cv h-100">
+      <div class="card-cv-header">
+        <h5 class="mb-0"><i class="bi bi-info-circle"></i> Dica</h5>
+      </div>
+      <div class="p-3 text-mute fs-13">
+        {% if is_aggregated_view %}
+          Você tem acesso a métricas agregadas. Para abrir uma conversa específica, é necessário ter perfil de master, coordenador ou consultor (dono do lead).
+        {% else %}
+          Acompanhe seus números no painel à esquerda. Use os filtros acima para mudar o período.
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Produtividade da equipe -->
+{% if consultants %}
+<div class="card-cv mt-3">
+  <div class="card-cv-header">
+    <h5 class="mb-0"><i class="bi bi-people-fill"></i> Produtividade da equipe</h5>
+    <span class="muted small">No período selecionado</span>
+  </div>
+  <div class="p-3">
+    <div class="table-responsive">
+      <table class="table table-dark table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Consultor</th>
+            <th>Status</th>
+            <th>Recebidos / Meta</th>
+            <th>Pressão</th>
+            <th>Ativos</th>
+            <th>SLA pend.</th>
+            <th>Fechados</th>
+            {% if current_user.role in ('master', 'coordenador') %}<th></th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in consultants %}
+          <tr {% if c.blocked %}class="row-blocked"{% endif %}>
+            <td>
+              {{ c.name }}
+              {% if c.blocked %}<span class="badge bg-danger ms-1">bloq.</span>{% endif %}
+            </td>
+            <td>
+              <span class="status-dot {% if c.online %}online{% else %}offline{% endif %}"></span>
+              {{ 'Online' if c.online else 'Offline' }}
+            </td>
+            <td>{{ c.leads_periodo }} / {{ c.quota }}</td>
+            <td>
+              <div class="progress-dark" style="width:120px;">
+                <div class="progress-fill {% if c.pressure > 100 %}danger-fill{% elif c.pressure > 80 %}warn-fill{% else %}brand-fill{% endif %}"
+                     style="width: {{ c.pressure if c.pressure < 100 else 100 }}%"></div>
+              </div>
+              <small class="text-mute">{{ c.pressure }}%</small>
+            </td>
+            <td>{{ c.active }}</td>
+            <td>
+              {% if c.sla_pendentes > 0 %}
+                <span class="text-warning"><b>{{ c.sla_pendentes }}</b></span>
+              {% else %}
+                <span class="text-mute">0</span>
+              {% endif %}
+            </td>
+            <td><span class="chip brand">{{ c.closed }}</span></td>
+            {% if current_user.role in ('master', 'coordenador') %}
+            <td>
+              <a href="{{ url_for('equipe', consultor=c.id) }}" class="btn btn-sm btn-ghost" title="Ver conversas">
+                <i class="bi bi-eye"></i>
+              </a>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<style>
+.dashboard-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.period-tabs {
+  display: flex;
+  background: var(--bg-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.period-tab {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-soft);
+  text-decoration: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-right: 1px solid var(--border-soft);
+  transition: all var(--transition);
+}
+.period-tab:last-child { border-right: none; }
+.period-tab:hover { background: var(--bg-elev); color: var(--text); }
+.period-tab.active {
+  background: var(--brand);
+  color: #fff;
+  font-weight: 600;
+}
+
+.pipe-value-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+.pipe-value-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 12px;
+  position: relative;
+  overflow: hidden;
+}
+.pipe-value-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--brand);
+}
+.pipe-value-card.stage-mensagem_enviada::before     { background: #6c8aff; }
+.pipe-value-card.stage-em_conversacao::before       { background: #00a884; }
+.pipe-value-card.stage-cotacao_enviada::before      { background: #53bdeb; }
+.pipe-value-card.stage-proposta_digitada::before    { background: #a07eff; }
+.pipe-value-card.stage-em_analise::before           { background: #ffb547; }
+.pipe-value-card.stage-aguardando_pagamento::before { background: #ff8a3d; }
+.pipe-value-card.stage-plano_fechado::before        { background: #00d4a0; }
+.pipe-value-card.stage-lead_frio::before            { background: #6c757d; }
+.pipe-value-label {
+  font-size: 11.5px;
+  color: var(--text-mute);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  font-weight: 600;
+}
+.pipe-value-num { font-size: 22px; font-weight: 700; margin-top: 4px; }
+.pipe-value-money {
+  font-size: 13px;
+  color: var(--brand);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.row-blocked { opacity: .55; }
+</style>
+{% endblock %}

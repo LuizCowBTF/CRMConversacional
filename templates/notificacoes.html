@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Notificações · CRM{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Notificações</h1>
+    <p class="page-subtitle">Alertas operacionais que precisam da sua atenção agora</p>
+  </div>
+</div>
+
+<div class="row g-3">
+
+  <div class="col-lg-4">
+    <div class="card-cv h-100">
+      <div class="card-cv-header d-flex align-items-center justify-content-between">
+        <div>
+          <h5 class="mb-0">🆕 Novos leads (24h)</h5>
+          <span class="muted small">{{ novos|length }} entraram nas últimas 24 horas</span>
+        </div>
+      </div>
+      <div class="p-2">
+        {% if novos %}
+          {% for lead in novos %}
+            <a href="{{ url_for('conversas', lead_id=lead.id) }}"
+               class="d-flex align-items-center gap-2 p-2 rounded notif-item">
+              <div class="avatar-sm">{{ lead.name[0]|upper }}</div>
+              <div class="flex-grow-1">
+                <div class="fw-semibold">{{ lead.name }}</div>
+                <div class="muted small">
+                  {{ lead.source or 'sem origem' }} ·
+                  {{ lead.owner.name if lead.owner else 'sem dono' }}
+                </div>
+              </div>
+              <span class="badge bg-secondary">{{ lead.stage|replace('_', ' ') }}</span>
+            </a>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state p-3">
+            <div class="muted small">Nenhum lead novo nas últimas 24h.</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card-cv h-100">
+      <div class="card-cv-header d-flex align-items-center justify-content-between">
+        <div>
+          <h5 class="mb-0">⏰ SLA quebrado</h5>
+          <span class="muted small">{{ sla_quebrado|length }} leads aguardando &gt; 60 min</span>
+        </div>
+      </div>
+      <div class="p-2">
+        {% if sla_quebrado %}
+          {% for lead in sla_quebrado %}
+            <a href="{{ url_for('conversas', lead_id=lead.id) }}"
+               class="d-flex align-items-center gap-2 p-2 rounded notif-item">
+              <div class="avatar-sm avatar-warn">{{ lead.name[0]|upper }}</div>
+              <div class="flex-grow-1">
+                <div class="fw-semibold">{{ lead.name }}</div>
+                <div class="muted small">
+                  {{ lead.sla_minutes }} min sem resposta · {{ lead.owner.name if lead.owner else '—' }}
+                </div>
+              </div>
+              <span class="badge bg-warning text-dark">SLA</span>
+            </a>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state p-3">
+            <div class="muted small">SLA dentro do esperado. 🎯</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card-cv h-100">
+      <div class="card-cv-header d-flex align-items-center justify-content-between">
+        <div>
+          <h5 class="mb-0">❄️ Frios recentes</h5>
+          <span class="muted small">Leads que esfriaram, precisam de reativação</span>
+        </div>
+      </div>
+      <div class="p-2">
+        {% if frios %}
+          {% for lead in frios %}
+            <a href="{{ url_for('conversas', lead_id=lead.id) }}"
+               class="d-flex align-items-center gap-2 p-2 rounded notif-item">
+              <div class="avatar-sm avatar-cold">{{ lead.name[0]|upper }}</div>
+              <div class="flex-grow-1">
+                <div class="fw-semibold">{{ lead.name }}</div>
+                <div class="muted small">
+                  {{ lead.sent_without_response }} mensagens sem resposta
+                </div>
+              </div>
+              <span class="badge bg-info text-dark">frio</span>
+            </a>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state p-3">
+            <div class="muted small">Nenhum lead frio recente.</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+.notif-item { color: inherit; text-decoration: none; transition: background .15s; }
+.notif-item:hover { background: rgba(255,255,255,.04); }
+.avatar-sm {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--brand); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: .9rem;
+}
+.avatar-warn { background: #f0b400; color: #000; }
+.avatar-cold { background: #4a8db3; color: #fff; }
+.empty-state { text-align: center; }
+</style>
+{% endblock %}

@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% block title %}Tarefas{% endblock %}
+{% block page_title %}Tarefas{% endblock %}
+
+{% block topbar_extra %}
+<button class="btn btn-brand btn-sm" data-bs-toggle="modal" data-bs-target="#newTaskModal">
+  <i class="bi bi-plus-lg"></i> Nova tarefa
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+
+  <!-- Coluna principal: tarefas atrasadas e próximas -->
+  <div class="col-lg-8">
+
+    {% if overdue %}
+    <div class="card-cv mb-3 border-danger-soft">
+      <div class="card-cv-header d-flex align-items-center justify-content-between">
+        <div>
+          <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill text-danger"></i> Atrasadas ({{ overdue|length }})</h5>
+          <span class="muted small">Estas tarefas já passaram do horário programado</span>
+        </div>
+      </div>
+      <div class="task-list">
+        {% for t in overdue %}
+        {% include "_task_row.html" %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card-cv mb-3">
+      <div class="card-cv-header">
+        <h5 class="mb-0"><i class="bi bi-calendar2-event"></i> Próximas ({{ upcoming|length }})</h5>
+        <span class="muted small">Tarefas agendadas — receberá popup quando o horário chegar</span>
+      </div>
+      <div class="task-list">
+        {% if upcoming %}
+          {% for t in upcoming %}
+          {% include "_task_row.html" %}
+          {% endfor %}
+        {% else %}
+          <div class="p-4 text-center text-mute">Nenhuma tarefa agendada. Crie uma nova clicando no botão acima.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if done %}
+    <div class="card-cv">
+      <div class="card-cv-header">
+        <h5 class="mb-0"><i class="bi bi-check2-all text-brand"></i> Concluídas recentemente</h5>
+      </div>
+      <div class="task-list">
+        {% for t in done %}
+        <div class="task-row done">
+          <div class="task-icon"><i class="bi bi-check2"></i></div>
+          <div class="task-body">
+            <div class="task-title text-mute">{{ t.title }}</div>
+            <div class="task-meta text-mute">
+              {{ t.scheduled_at.strftime('%d/%m %H:%M') }}
+              {% if t.lead %} · <a href="{{ url_for('conversas', lead=t.lead.id) }}" class="text-mute">{{ t.lead.name }}</a>{% endif %}
+            </div>
+          </div>
+          <div class="task-actions">
+            <form method="POST" action="{{ url_for('task_delete', tid=t.id) }}" style="margin:0;">
+              <button class="btn btn-sm btn-ghost" title="Remover"><i class="bi bi-trash"></i></button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Coluna lateral: tipos de tarefa e dicas -->
+  <div class="col-lg-4">
+    <div class="card-cv mb-3">
+      <div class="card-cv-header">
+        <h5 class="mb-0"><i class="bi bi-info-circle"></i> Como funciona</h5>
+      </div>
+      <div class="p-3 fs-13 text-soft">
+        <p class="mb-2"><b class="text-brand">Pop-up automático:</b> no horário agendado, você recebe um toast com som + botão "Atender agora".</p>
+        <p class="mb-2"><b class="text-brand">Vinculadas a leads:</b> tarefas com lead vinculado abrem direto a conversa.</p>
+        <p class="mb-0"><b class="text-brand">Atalho rápido:</b> agende tarefas direto do painel lateral em <a href="{{ url_for('conversas') }}" class="text-brand">Conversas</a>.</p>
+      </div>
+    </div>
+
+    <div class="card-cv">
+      <div class="card-cv-header">
+        <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Resumo</h5>
+      </div>
+      <div class="p-3">
+        <div class="d-flex justify-content-between mb-2">
+          <span class="text-soft">Atrasadas</span>
+          <span class="badge bg-danger">{{ overdue|length }}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-2">
+          <span class="text-soft">Próximas</span>
+          <span class="badge bg-warning text-dark">{{ upcoming|length }}</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-soft">Concluídas (últimas)</span>
+          <span class="badge bg-success">{{ done|length }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: nova tarefa -->
+<div class="modal fade" id="newTaskModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('tarefas') }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Nova tarefa</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2">
+            <label class="form-label">Título *</label>
+            <input type="text" name="title" class="form-control" placeholder="ex: Ligar para Carlos Mendes" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Descrição</label>
+            <textarea name="description" class="form-control" rows="2" placeholder="Detalhes (opcional)"></textarea>
+          </div>
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label">Tipo</label>
+              <select name="kind" class="form-select">
+                <option value="lembrete">Lembrete</option>
+                <option value="ligacao">Ligação</option>
+                <option value="followup_manual">FUP manual</option>
+                <option value="reuniao">Reunião</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Quando *</label>
+              <input type="datetime-local" name="scheduled_at" class="form-control" required>
+            </div>
+          </div>
+          <div class="mt-2">
+            <label class="form-label">Vincular a lead (opcional)</label>
+            <select name="lead_id" class="form-select">
+              <option value="">— Sem vínculo —</option>
+              {% for l in leads %}
+              <option value="{{ l.id }}">{{ l.name }}{% if l.company %} · {{ l.company }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-brand">Agendar tarefa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

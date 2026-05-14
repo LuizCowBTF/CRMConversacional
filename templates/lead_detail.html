@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% set active_nav = 'conversas' %}
+{% block title %}{{ lead.name }}{% endblock %}
+{% block page_title %}{{ lead.name }}{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card-x">
+      <div class="card-title">Dados do lead</div>
+      <form method="POST" action="{{ url_for('lead_update', lead_id=lead.id) }}">
+        <div class="row g-2">
+          <div class="col-md-6"><label class="form-label">Nome</label><input class="form-control" name="name" value="{{ lead.name }}"></div>
+          <div class="col-md-6"><label class="form-label">Telefone</label><input class="form-control" name="phone" value="{{ lead.phone or '' }}"></div>
+          <div class="col-md-6"><label class="form-label">E-mail</label><input class="form-control" name="email" value="{{ lead.email or '' }}"></div>
+          <div class="col-md-6"><label class="form-label">Empresa</label><input class="form-control" name="company" value="{{ lead.company or '' }}"></div>
+          <div class="col-12"><label class="form-label">Tags (separadas por vírgula)</label><input class="form-control" name="tags" value="{{ lead.tags or '' }}"></div>
+          <div class="col-12"><label class="form-label">Notas</label><textarea class="form-control" name="notes" rows="3">{{ lead.notes or '' }}</textarea></div>
+        </div>
+        <div class="mt-3 d-flex gap-2">
+          <button class="btn btn-brand"><i class="bi bi-save"></i> Salvar</button>
+          <a href="{{ url_for('conversas', lead=lead.id) }}" class="btn btn-ghost"><i class="bi bi-chat"></i> Abrir conversa</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card-x">
+      <div class="card-title">Resumo</div>
+      <div class="mb-2">
+        <span class="stage-pill stage-{{ lead.stage }}">{{ lead.stage_label }}</span>
+      </div>
+      <div class="fs-13 text-soft">
+        <div><b>Proprietário:</b> {{ lead.owner.name if lead.owner else '—' }}</div>
+        <div><b>Origem:</b> {{ lead.source }}</div>
+        <div><b>Criado:</b> {{ lead.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
+        <div><b>Última msg.:</b> {% if lead.last_message_at %}{{ lead.last_message_at.strftime('%d/%m %H:%M') }}{% else %}—{% endif %}</div>
+        <div><b>FUPs sem resposta:</b> {{ lead.sent_without_response or 0 }}</div>
+      </div>
+    </div>
+
+    <div class="card-x mt-3">
+      <div class="card-title">Timeline de auditoria</div>
+      <ul class="timeline" style="max-height:400px;overflow:auto;">
+        {% for log in timeline %}
+        <li class="timeline-item">
+          <div class="ti-dot"></div>
+          <div class="ti-body">
+            <div class="ti-action">{{ log.action }}</div>
+            {% if log.detail %}<div class="ti-detail">{{ log.detail }}</div>{% endif %}
+            <div class="ti-time">
+              {{ log.created_at.strftime('%d/%m/%Y %H:%M') }}
+              {% if log.user %} • {{ log.user.name }}{% else %} • Sistema{% endif %}
+            </div>
+          </div>
+        </li>
+        {% else %}
+        <li class="text-mute fs-13">Sem registros ainda.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

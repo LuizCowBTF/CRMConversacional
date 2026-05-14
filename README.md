@@ -170,7 +170,7 @@ DistributionRule mode, redistribute_offline, cold_after_days
 - WhatsApp Cloud API (hoje o "inbound" é simulado via botão)
 - Socket.IO ou SSE no lugar de polling
 - Celery beat para automações fora do request
-- PostgreSQL + Redis
+- MySQL + Redis
 - Multi-tenant (campo `tenant_id`)
 - Push notifications mobile via PWA
 - Testes automatizados

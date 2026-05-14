@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Meu perfil · CRM{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Meu perfil</h1>
+    <p class="page-subtitle">Dados pessoais, senha e status de disponibilidade</p>
+  </div>
+</div>
+
+<div class="row g-3">
+
+  <div class="col-lg-7">
+    <div class="card-cv">
+      <div class="card-cv-header">
+        <h5 class="mb-0">Editar dados</h5>
+      </div>
+      <form method="post" class="p-3">
+
+        <div class="d-flex align-items-center gap-3 mb-4">
+          <div class="profile-avatar">{{ u.name[0]|upper }}</div>
+          <div>
+            <div class="fw-semibold fs-5">{{ u.name }}</div>
+            <div class="muted small">
+              {{ u.email }} ·
+              <span class="badge {% if u.role == 'admin' %}bg-warning text-dark{% else %}bg-info text-dark{% endif %}">
+                {{ u.role }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Nome</label>
+          <input type="text" name="name" class="form-control form-control-dark"
+                 value="{{ u.name }}" required>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">E-mail</label>
+          <input type="email" class="form-control form-control-dark"
+                 value="{{ u.email }}" disabled>
+          <div class="form-text muted">Para alterar o e-mail, contate um administrador.</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Nova senha</label>
+          <input type="password" name="new_password" class="form-control form-control-dark"
+                 placeholder="deixe em branco para manter a atual">
+        </div>
+
+        <div class="mb-4 form-check form-switch">
+          <input type="checkbox" id="is_online" name="is_online"
+                 class="form-check-input" {% if u.is_online %}checked{% endif %}>
+          <label class="form-check-label" for="is_online">
+            Estou online e disponível para receber novos leads
+          </label>
+          <div class="form-text muted">
+            Quando desativado, o algoritmo de distribuição pula seu usuário (se a redistribuição automática estiver ligada).
+          </div>
+        </div>
+
+        <button class="btn btn-brand">Salvar alterações</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+
+    <div class="card-cv mb-3">
+      <div class="card-cv-header">
+        <h5 class="mb-0">Meta semanal</h5>
+      </div>
+      <div class="p-3">
+        <div class="d-flex justify-content-between align-items-baseline mb-2">
+          <span class="muted small">Quota</span>
+          <span class="fw-bold fs-4">{{ u.weekly_quota }}<span class="muted small"> leads/sem</span></span>
+        </div>
+        <div class="muted small">
+          Sua meta semanal de recebimento de leads. Definida pelo administrador, usada pelo algoritmo de distribuição proporcional.
+        </div>
+      </div>
+    </div>
+
+    <div class="card-cv mb-3">
+      <div class="card-cv-header">
+        <h5 class="mb-0">Status</h5>
+      </div>
+      <div class="p-3">
+        <div class="d-flex justify-content-between py-2 border-bottom border-secondary">
+          <span class="small">Disponibilidade</span>
+          <span class="badge {% if u.is_online %}bg-success{% else %}bg-secondary{% endif %}">
+            {{ 'Online' if u.is_online else 'Offline' }}
+          </span>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-bottom border-secondary">
+          <span class="small">Conta</span>
+          <span class="badge {% if u.is_active %}bg-success{% else %}bg-danger{% endif %}">
+            {{ 'Ativa' if u.is_active else 'Inativa' }}
+          </span>
+        </div>
+        <div class="d-flex justify-content-between py-2">
+          <span class="small">Papel</span>
+          <span class="badge bg-secondary">{{ u.role }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-cv">
+      <div class="card-cv-header">
+        <h5 class="mb-0">Favoritos</h5>
+      </div>
+      <div class="p-3">
+        <div class="muted small mb-2">
+          <strong>{{ (u.favorite_templates or '').split(',')|select|list|length }}</strong> templates favoritos ·
+          <strong>{{ (u.favorite_followups or '').split(',')|select|list|length }}</strong> follow-ups favoritos
+        </div>
+        <div class="d-flex gap-2">
+          <a href="{{ url_for('templates_list') }}" class="btn btn-outline-light btn-sm">Templates</a>
+          <a href="{{ url_for('followups_list') }}" class="btn btn-outline-light btn-sm">Follow-ups</a>
+          <a href="{{ url_for('snippets') }}" class="btn btn-outline-light btn-sm">Snippets</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+.profile-avatar {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: var(--brand); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1.6rem;
+}
+</style>
+{% endblock %}

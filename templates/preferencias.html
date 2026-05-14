@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% block title %}Preferências{% endblock %}
+{% block page_title %}Preferências{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title-h">Preferências do consultor</h1>
+    <p class="page-subtitle">Configure sua cadência de follow-up, seus templates e snippets favoritos.</p>
+  </div>
+</div>
+
+<div class="row g-3">
+
+  <!-- 1) CADÊNCIA PESSOAL -->
+  <div class="col-lg-6">
+    <div class="card-cv h-100">
+      <div class="card-cv-header">
+        <h5 class="mb-0"><i class="bi bi-speedometer2 text-brand"></i> Cadência de follow-up</h5>
+        <span class="muted small">Quantas vezes por dia você quer mandar FUP por lead. Máximo 4/dia.</span>
+      </div>
+      <form method="post" class="p-3">
+        <input type="hidden" name="action" value="cadence">
+
+        <div class="mb-3">
+          <label class="form-label">
+            FUPs por dia: <b class="text-brand" id="perDayLabel">{{ u.cadence_per_day }}</b>
+          </label>
+          <input type="range" name="cadence_per_day" min="1" max="4" value="{{ u.cadence_per_day }}"
+                 class="form-range" oninput="document.getElementById('perDayLabel').textContent = this.value">
+          <div class="d-flex justify-content-between small text-mute">
+            <span>1× (conservador)</span><span>2×</span><span>3×</span><span>4× (agressivo)</span>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">
+            Dias mantendo cadência: <b class="text-brand" id="daysLabel">{{ u.cadence_days }}</b>
+          </label>
+          <input type="range" name="cadence_days" min="1" max="3" value="{{ u.cadence_days }}"
+                 class="form-range" oninput="document.getElementById('daysLabel').textContent = this.value">
+          <div class="d-flex justify-content-between small text-mute">
+            <span>1 dia</span><span>2 dias</span><span>3 dias</span>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">
+            Intervalo mínimo entre FUPs: <b class="text-brand" id="intervalLabel">{{ u.cadence_interval_hours }}</b>h
+          </label>
+          <input type="range" name="cadence_interval_hours" min="1" max="12" value="{{ u.cadence_interval_hours }}"
+                 class="form-range" oninput="document.getElementById('intervalLabel').textContent = this.value">
+          <div class="d-flex justify-content-between small text-mute">
+            <span>1h</span><span>6h</span><span>12h</span>
+          </div>
+        </div>
+
+        <div class="alert alert-info py-2 fs-12">
+          <i class="bi bi-info-circle"></i>
+          Total possível: até <b>{{ u.cadence_per_day * u.cadence_days }}</b> FUPs por lead em {{ u.cadence_days }} dias.
+          Depois disso, o lead entra automaticamente em <b>Remarketing</b> para ligação.
+        </div>
+
+        <button class="btn btn-brand"><i class="bi bi-check2"></i> Salvar cadência</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2) FAVORITOS (templates + follow-ups) -->
+  <div class="col-lg-6">
+    <div class="card-cv h-100">
+      <div class="card-cv-header">
+        <h5 class="mb-0"><i class="bi bi-star-fill text-brand"></i> Favoritos</h5>
+        <span class="muted small">Aparecem como atalhos rápidos no topo do composer das conversas.</span>
+      </div>
+      <form method="post" class="p-3">
+        <input type="hidden" name="action" value="favorites">
+
+        <label class="form-label mb-2"><b>Templates</b> (até 3)</label>
+        <div class="favorite-grid">
+          {% for t in templates %}
+          {% set checked = t.id in u.fav_template_ids %}
+          <label class="favorite-check">
+            <input type="checkbox" name="fav_templates" value="{{ t.id }}" {% if checked %}checked{% endif %}>
+            <span class="favorite-label">
+              <i class="bi bi-file-text"></i> {{ t.title }}
+              <small class="text-mute">{{ t.category }}</small>
+            </span>
+          </label>
+          {% else %}
+          <div class="text-mute fs-12">Nenhum template ativo.</div>
+          {% endfor %}
+        </div>
+
+        <label class="form-label mt-3 mb-2"><b>Follow-ups</b> (até 5)</label>
+        <div class="favorite-grid">
+          {% for f in followups %}
+          {% set checked = f.id in u.fav_followup_ids %}
+          <label class="favorite-check">
+            <input type="checkbox" name="fav_followups" value="{{ f.id }}" {% if checked %}checked{% endif %}>
+            <span class="favorite-label">
+              <i class="bi bi-clock-history"></i> {{ f.title }}
+              <small class="text-mute">FUP {{ f.sequence }}</small>
+            </span>
+          </label>
+          {% else %}
+          <div class="text-mute fs-12">Nenhum follow-up ativo.</div>
+          {% endfor %}
+        </div>
+
+        <button class="btn btn-brand mt-3"><i class="bi bi-check2"></i> Salvar favoritos</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3) SNIPPETS PESSOAIS -->
+  <div class="col-lg-12">
+    <div class="card-cv">
+      <div class="card-cv-header">
+        <h5 class="mb-0"><i class="bi bi-lightning-charge-fill text-brand"></i> Snippets pessoais ({{ snippets|length }}/5)</h5>
+        <span class="muted small">
+          Atalhos rápidos digitando <code>/atalho</code> no composer da conversa.
+          Cada usuário pode ter até 5.
+        </span>
+      </div>
+      <div class="p-3">
+
+        <div class="snippet-list">
+          {% for s in snippets %}
+          <div class="snippet-item-pref">
+            <div class="snippet-shortcut">{{ s.shortcut }}</div>
+            <div class="snippet-body">{{ s.body }}</div>
+            <form method="post" style="margin:0;">
+              <input type="hidden" name="action" value="snippet_delete">
+              <input type="hidden" name="snippet_id" value="{{ s.id }}">
+              <button class="btn btn-sm btn-ghost" title="Remover"><i class="bi bi-trash"></i></button>
+            </form>
+          </div>
+          {% else %}
+          <div class="text-mute fs-13 mb-3">Você ainda não tem snippets. Crie um abaixo.</div>
+          {% endfor %}
+        </div>
+
+        {% if snippets|length < 5 %}
+        <form method="post" class="row g-2 align-items-end mt-2 pt-3 border-top border-secondary">
+          <input type="hidden" name="action" value="snippet_add">
+          <div class="col-md-3">
+            <label class="form-label">Atalho</label>
+            <input type="text" name="shortcut" class="form-control form-control-dark" placeholder="/oi" required pattern="^/?[a-zA-Z0-9_-]+$">
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Texto</label>
+            <input type="text" name="body" class="form-control form-control-dark" placeholder="Bom dia! Tudo bem?" required>
+          </div>
+          <div class="col-md-1">
+            <button class="btn btn-brand w-100"><i class="bi bi-plus"></i></button>
+          </div>
+        </form>
+        {% else %}
+        <div class="alert alert-warning fs-12 mb-0">
+          Limite de 5 snippets atingido. Remova algum antes de criar outro.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}Operadoras{% endblock %}
+{% block page_title %}Operadoras de plano{% endblock %}
+
+{% block topbar_extra %}
+<button class="btn btn-brand btn-sm" data-bs-toggle="modal" data-bs-target="#newOpModal">
+  <i class="bi bi-plus-lg"></i> Nova operadora
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title-h">Gestão de operadoras</h1>
+    <p class="page-subtitle">Lista de operadoras disponíveis para cotação. Consultores escolhem uma ao mover lead para "Cotação enviada".</p>
+  </div>
+</div>
+
+{% set por_cat = {} %}
+{% for op in operadoras %}
+  {% if op.categoria not in por_cat %}{% set _ = por_cat.update({op.categoria: []}) %}{% endif %}
+  {% set _ = por_cat[op.categoria].append(op) %}
+{% endfor %}
+
+<div class="row g-3">
+{% for categoria, lista in por_cat.items() %}
+  <div class="col-lg-4">
+    <div class="card-cv h-100">
+      <div class="card-cv-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">{{ categoria }}</h5>
+        <span class="badge bg-secondary">{{ lista|length }}</span>
+      </div>
+      <div class="operadora-list">
+        {% for op in lista %}
+        <div class="operadora-row {% if not op.is_active %}inactive{% endif %}">
+          <span class="op-name">{{ op.nome }}</span>
+          <div class="op-actions d-flex gap-1">
+            <form method="post" style="margin:0">
+              <input type="hidden" name="action" value="toggle">
+              <input type="hidden" name="id" value="{{ op.id }}">
+              <button class="btn btn-sm btn-ghost" title="{% if op.is_active %}Desativar{% else %}Ativar{% endif %}">
+                <i class="bi bi-{% if op.is_active %}eye-fill text-brand{% else %}eye-slash text-mute{% endif %}"></i>
+              </button>
+            </form>
+            <form method="post" style="margin:0" onsubmit="return confirm('Remover {{ op.nome }}?')">
+              <input type="hidden" name="action" value="delete">
+              <input type="hidden" name="id" value="{{ op.id }}">
+              <button class="btn btn-sm btn-ghost text-danger" title="Remover"><i class="bi bi-trash"></i></button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+{% endfor %}
+</div>
+
+<!-- Modal: nova operadora -->
+<div class="modal fade" id="newOpModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="action" value="create">
+        <div class="modal-header">
+          <h5 class="modal-title">Nova operadora</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2">
+            <label class="form-label">Categoria *</label>
+            <select name="categoria" class="form-select" required>
+              <option value="ADESÃO">ADESÃO</option>
+              <option value="PF">PF</option>
+              <option value="PME">PME</option>
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Nome *</label>
+            <input type="text" name="nome" class="form-control" placeholder="Ex: Amil 30-99" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-brand">Criar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+.operadora-list { padding: 4px 0; }
+.operadora-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 13px;
+}
+.operadora-row:last-child { border-bottom: none; }
+.operadora-row:hover { background: var(--bg-elev); }
+.operadora-row.inactive .op-name { color: var(--text-mute); text-decoration: line-through; }
+</style>
+{% endblock %}

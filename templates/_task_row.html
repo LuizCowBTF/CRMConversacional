@@ -1,0 +1,34 @@
+{% set kind_icons = {'lembrete':'bell','ligacao':'telephone-fill','followup_manual':'arrow-repeat','reuniao':'calendar-event'} %}
+<div class="task-row {% if t.scheduled_at < now %}overdue{% endif %}">
+  <div class="task-icon kind-{{ t.kind }}">
+    <i class="bi bi-{{ kind_icons.get(t.kind, 'check2-square') }}"></i>
+  </div>
+  <div class="task-body">
+    <div class="task-title">{{ t.title }}</div>
+    <div class="task-meta">
+      <span class="task-time">
+        <i class="bi bi-clock"></i> {{ t.scheduled_at.strftime('%d/%m/%Y %H:%M') }}
+      </span>
+      {% if t.lead %}
+        · <a href="{{ url_for('conversas', lead=t.lead.id) }}" class="text-brand">{{ t.lead.name }}</a>
+      {% endif %}
+      {% if t.scheduled_at < now %}
+        · <span class="text-danger"><i class="bi bi-exclamation-triangle-fill"></i> atrasada</span>
+      {% endif %}
+    </div>
+    {% if t.description %}<div class="task-desc">{{ t.description }}</div>{% endif %}
+  </div>
+  <div class="task-actions">
+    {% if t.lead %}
+    <a href="{{ url_for('conversas', lead=t.lead.id) }}" class="btn btn-sm btn-ghost" title="Abrir conversa">
+      <i class="bi bi-chat"></i>
+    </a>
+    {% endif %}
+    <form method="POST" action="{{ url_for('task_done', tid=t.id) }}" style="margin:0;">
+      <button class="btn btn-sm btn-brand" title="Marcar como concluída"><i class="bi bi-check2"></i></button>
+    </form>
+    <form method="POST" action="{{ url_for('task_delete', tid=t.id) }}" style="margin:0;">
+      <button class="btn btn-sm btn-ghost" title="Remover"><i class="bi bi-trash"></i></button>
+    </form>
+  </div>
+</div>

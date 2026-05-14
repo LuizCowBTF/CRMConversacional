@@ -1,0 +1,337 @@
+{% extends 'base.html' %}
+{% block title %}Conversas{% endblock %}
+{% block page_title %}Conversas{% endblock %}
+{% block content_class %}no-padding{% endblock %}
+
+{% block topbar_extra %}
+<button class="btn btn-brand btn-sm" data-bs-toggle="modal" data-bs-target="#newLeadModal">
+  <i class="bi bi-plus-lg"></i> Novo lead
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="chat-layout">
+
+  <!-- COLUNA 1: LISTA DE LEADS -->
+  <div class="chat-list">
+    <div class="chat-list-header">
+      <form method="GET" action="{{ url_for('conversas') }}" class="d-flex flex-grow-1" style="gap:6px;">
+        <input type="text" class="search-input" name="q" placeholder="Buscar lead..." value="{{ search }}">
+        <button type="submit" class="btn btn-sm btn-ghost"><i class="bi bi-search"></i></button>
+      </form>
+    </div>
+    <div class="chat-list-filter-header">
+      <span>Filtros</span>
+      <button type="button" class="chat-list-filter-toggle" onclick="toggleFiltersStrip()" title="Ocultar/mostrar filtros">
+        <i id="chatListFilterArrow" class="bi bi-chevron-up"></i>
+      </button>
+    </div>
+    <div class="chat-list-filter" id="chatListFilter">
+      <a href="{{ url_for('conversas') }}" class="filter-pill {% if not filter_stage %}active{% endif %}">Todos</a>
+      {% for sid, label in PIPELINE_STAGES %}
+        <a href="{{ url_for('conversas', stage=sid) }}"
+           class="filter-pill {% if filter_stage == sid %}active{% endif %}"
+           title="{{ label }}">{{ STAGE_SHORT.get(sid, label[:6]) }}</a>
+      {% endfor %}
+    </div>
+    <div class="chat-list-items">
+      {% for lead in leads %}
+      {% set is_unread = lead.last_inbound_at and (not lead.last_outbound_at or lead.last_outbound_at < lead.last_inbound_at) %}
+      <a href="{{ url_for('conversas', lead=lead.id, stage=filter_stage, q=search) }}"
+         class="chat-list-item {% if selected and selected.id == lead.id %}active{% endif %} {% if is_unread %}unread{% endif %}"
+         style="text-decoration:none;color:inherit;">
+        <div class="avatar {% if lead.stage == 'plano_fechado' %}brand{% endif %}">{{ lead.initial }}</div>
+        <div class="meta">
+          <div class="row-1">
+            <span class="name">{{ lead.name }}</span>
+            <span class="time">
+              {% if lead.last_message_at %}{{ lead.last_message_at.strftime('%d/%m %H:%M') }}{% else %}—{% endif %}
+            </span>
+          </div>
+          <div class="row-2">
+            <span class="preview" title="{% if lead.messages %}{{ lead.messages[-1].body }}{% endif %}">
+              {% if lead.messages %}{{ lead.messages[-1].body[:15] }}{% if lead.messages[-1].body|length > 15 %}…{% endif %}{% else %}—{% endif %}
+            </span>
+            <span class="stage-pill stage-{{ lead.stage }}" title="{{ lead.stage_label }}">{{ STAGE_SHORT.get(lead.stage, lead.stage[:3]) }}</span>
+          </div>
+          {% if is_unread %}<span class="unread-dot"></span>{% endif %}
+        </div>
+      </a>
+      {% else %}
+      <div class="text-center text-mute p-4">Nenhum lead encontrado.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- COLUNA 2: JANELA DA CONVERSA -->
+  <div class="chat-window">
+    {% if selected %}
+    <div class="chat-header">
+      <div class="avatar">{{ selected.initial }}</div>
+      <div style="flex:1;">
+        <div class="name">{{ selected.name }}</div>
+        <div class="sub">
+          {% if selected.phone %}{{ selected.phone }}{% endif %}
+          {% if selected.company %} · {{ selected.company }}{% endif %}
+          {% if selected.owner %} · <span class="text-brand">{{ selected.owner.name }}</span>{% endif %}
+          {% if selected.budget %} · <span class="text-brand">R$ {{ '%.0f'|format(selected.budget) }}</span>{% endif %}
+        </div>
+      </div>
+      <a href="{{ url_for('lead_detail', lead_id=selected.id) }}" class="btn btn-sm btn-ghost">
+        <i class="bi bi-info-circle"></i> Histórico
+      </a>
+      <button type="button" class="btn btn-sm btn-ghost" onclick="toggleSimulator()" title="Simular resposta do lead (demo)">
+        <i class="bi bi-arrow-down-circle"></i>
+      </button>
+      <button type="button" id="btnToggleSide" class="btn-toggle-side" onclick="toggleChatSide()" title="Ocultar painel lateral">
+        <i class="bi bi-layout-sidebar-reverse"></i>
+      </button>
+    </div>
+
+    <!-- Mensagens -->
+    <div class="chat-messages" id="chatMessages">
+      {% if selected.messages %}
+        {% for m in selected.messages %}
+          {% if m.kind == 'note' %}
+            <div class="msg-row note">
+              <div class="msg-bubble">
+                <b><i class="bi bi-sticky"></i> Nota interna</b><br>
+                {{ m.body }}
+                <span class="msg-time" style="position:static;display:block;margin-top:4px;">{{ m.created_at.strftime('%d/%m %H:%M') }}</span>
+              </div>
+            </div>
+          {% else %}
+            <div class="msg-row {{ m.direction }}">
+              <div class="msg-bubble">
+                {# Renderiza anexos #}
+                {% if m.attachments %}
+                  {% for att in m.attachments %}
+                    {% if att.kind == 'image' %}
+                      <a href="{{ url_for('static', filename='uploads/' + att.stored_name) }}" target="_blank">
+                        <img src="{{ url_for('static', filename='uploads/' + att.stored_name) }}"
+                             alt="{{ att.filename }}" class="msg-attachment-image">
+                      </a>
+                    {% elif att.kind == 'audio' %}
+                      <audio controls src="{{ url_for('static', filename='uploads/' + att.stored_name) }}" class="msg-attachment-audio"></audio>
+                    {% elif att.kind == 'video' %}
+                      <video controls src="{{ url_for('static', filename='uploads/' + att.stored_name) }}" class="msg-attachment-video"></video>
+                    {% else %}
+                      <a href="{{ url_for('static', filename='uploads/' + att.stored_name) }}" target="_blank" class="msg-attachment-file">
+                        <i class="bi bi-{% if att.kind == 'pdf' %}file-pdf{% else %}file-earmark{% endif %}"></i>
+                        <div>
+                          <div class="att-name">{{ att.filename }}</div>
+                          <div class="att-size">{{ (att.size_bytes / 1024)|int }} KB</div>
+                        </div>
+                      </a>
+                    {% endif %}
+                  {% endfor %}
+                  {% if m.body and not m.body.startswith('📎') %}<div class="att-caption">{{ m.body }}</div>{% endif %}
+                {% else %}
+                  {{ m.body }}
+                {% endif %}
+                <span class="msg-time">{{ m.created_at.strftime('%H:%M') }}</span>
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      {% else %}
+        <div class="empty-chat" style="flex:none;padding:40px 0;">
+          <div class="icon"><i class="bi bi-chat"></i></div>
+          <div>Inicie a conversa enviando uma mensagem.</div>
+        </div>
+      {% endif %}
+
+      <!-- Simulador inbound (demo) -->
+      <div id="simulatorBox" style="display:none;margin-top:14px;background:var(--bg-soft);border:1px dashed var(--border);padding:10px;border-radius:8px;">
+        <form method="POST" action="{{ url_for('simulate_inbound', lead_id=selected.id) }}" class="d-flex gap-2">
+          <input type="text" name="body" class="form-control form-control-sm" placeholder="Simular resposta do lead (demo)..." required>
+          <button class="btn btn-sm btn-ghost"><i class="bi bi-send"></i></button>
+        </form>
+        <small class="text-mute">Demo: simula uma mensagem recebida do lead via WhatsApp.</small>
+      </div>
+    </div>
+
+    <!-- Input bar -->
+    <div class="chat-input-bar position-relative">
+      <div class="quick-actions">
+        {% for t in fav_templates %}
+        <span class="qa-pill template use-template" data-template-id="{{ t.id }}"><i class="bi bi-file-text"></i> {{ t.title }}</span>
+        {% endfor %}
+        {% for f in fav_followups %}
+        <span class="qa-pill followup use-followup" data-followup-id="{{ f.id }}"><i class="bi bi-clock-history"></i> {{ f.title }}</span>
+        {% endfor %}
+        {% for s in snippets[:3] %}
+        <span class="qa-pill snippet" onclick="document.querySelector('#chatForm textarea').value += ' {{ s.body|e }}'; document.querySelector('#chatForm textarea').focus();"><i class="bi bi-lightning"></i> {{ s.shortcut }}</span>
+        {% endfor %}
+      </div>
+
+      <!-- Preview de anexos pendentes -->
+      <div id="attachmentPreview" class="attachment-preview" style="display:none;"></div>
+
+      <!-- Popup de autocomplete de snippets -->
+      <div id="snippetPopup" class="snippet-popup"></div>
+
+      <form id="chatForm" method="POST" action="{{ url_for('send_message', lead_id=selected.id) }}" class="chat-input-form">
+        <input type="hidden" name="kind" value="text">
+        <button type="button" class="btn-attach" id="btnAttach" title="Anexar arquivo (imagem, pdf, áudio)">
+          <i class="bi bi-paperclip"></i>
+        </button>
+        <input type="file" id="fileInput" data-upload-url="{{ url_for('upload_attachment', lead_id=selected.id) }}"
+               accept="image/*,audio/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.zip,.txt,.csv" style="display:none;">
+        <textarea name="body" class="auto-resize" placeholder="Digite uma mensagem... Use / para snippets · Anexe com 📎" required></textarea>
+        <button type="submit" title="Enviar"><i class="bi bi-send-fill"></i></button>
+      </form>
+    </div>
+    {% else %}
+    <div class="empty-chat">
+      <div class="icon"><i class="bi bi-chat-square-text"></i></div>
+      <div>Selecione uma conversa para começar.</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- COLUNA 3: PAINEL LATERAL — PIPELINE EMBUTIDO + DADOS DO LEAD -->
+  {% if selected %}
+  <div class="chat-side">
+
+    <!-- Pipeline embutido (mover etapa sem sair da conversa) -->
+    <div class="side-section side-pipeline">
+      <h6><i class="bi bi-kanban"></i> Pipeline · estágio atual</h6>
+      <div class="stage-pipeline-mini">
+        {% for sid, label in PIPELINE_STAGES %}
+        <form method="POST" action="{{ url_for('change_stage', lead_id=selected.id) }}" style="margin:0;">
+          <input type="hidden" name="stage" value="{{ sid }}">
+          <button type="submit" class="stage-mini-btn stage-{{ sid }} {% if selected.stage == sid %}active{% endif %}">
+            <span class="stage-mini-num">{{ loop.index }}</span>
+            <span class="stage-mini-label">{{ label }}</span>
+            {% if selected.stage == sid %}<i class="bi bi-check2-circle stage-mini-check"></i>{% endif %}
+          </button>
+        </form>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- SLA -->
+    <div class="side-section">
+      <h6><i class="bi bi-stopwatch"></i> SLA</h6>
+      {% if selected.sla_minutes %}
+        {% set sla_color = 'brand' if selected.sla_minutes < 30 else 'warn' if selected.sla_minutes < 120 else 'danger' %}
+        <span class="chip {{ sla_color }}">⏱ Aguardando resposta há {{ selected.sla_minutes }} min</span>
+      {% else %}
+        <span class="chip">Sem pendência</span>
+      {% endif %}
+      <div class="text-mute fs-12 mt-1">
+        FUPs sem resposta: <b>{{ selected.sent_without_response }}</b> ·
+        Hoje: <b>{{ selected.fups_sent_today or 0 }}</b>/{{ current_user.cadence_per_day }}
+      </div>
+    </div>
+
+    <!-- Orçamento (faturamento estipulado) -->
+    <div class="side-section">
+      <h6><i class="bi bi-cash-stack"></i> Orçamento estipulado</h6>
+      <form method="POST" action="{{ url_for('update_lead_budget', lead_id=selected.id) }}" class="d-flex gap-1">
+        <span class="input-group-text-dark">R$</span>
+        <input type="text" name="budget" value="{{ '%.2f'|format(selected.budget or 0) }}"
+               class="form-control form-control-sm form-control-dark" placeholder="0,00">
+        <button class="btn btn-sm btn-brand"><i class="bi bi-check"></i></button>
+      </form>
+      <div class="text-mute fs-12 mt-1">Valor potencial do negócio · entra no Dashboard.</div>
+    </div>
+
+    <!-- Dados -->
+    <div class="side-section">
+      <h6><i class="bi bi-person-vcard"></i> Dados</h6>
+      <div class="fs-12 text-soft">
+        <div class="mb-1"><b>Telefone:</b> {{ selected.phone or '—' }}</div>
+        <div class="mb-1"><b>E-mail:</b> {{ selected.email or '—' }}</div>
+        <div class="mb-1"><b>Empresa:</b> {{ selected.company or '—' }}</div>
+        <div class="mb-1"><b>Origem:</b> {{ selected.source or '—' }}</div>
+        <div class="mb-1"><b>Criado:</b> {{ selected.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
+      </div>
+    </div>
+
+    <!-- Tags -->
+    <div class="side-section">
+      <h6><i class="bi bi-tags"></i> Tags</h6>
+      <div>
+        {% for tag in selected.tag_list %}
+          <span class="chip info">#{{ tag }}</span>
+        {% else %}
+          <span class="text-mute fs-12">Sem tags</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Nota rápida -->
+    <div class="side-section">
+      <h6><i class="bi bi-sticky"></i> Nota interna rápida</h6>
+      <form method="POST" action="{{ url_for('add_note', lead_id=selected.id) }}">
+        <textarea name="note" class="form-control form-control-sm mb-2" rows="2" placeholder="Anotação visível só para a equipe..."></textarea>
+        <button class="btn btn-sm btn-ghost w-100"><i class="bi bi-plus"></i> Salvar nota</button>
+      </form>
+    </div>
+
+    <!-- Agendar tarefa para este lead -->
+    <div class="side-section">
+      <h6><i class="bi bi-alarm"></i> Agendar tarefa</h6>
+      <form method="POST" action="{{ url_for('tarefas') }}">
+        <input type="hidden" name="lead_id" value="{{ selected.id }}">
+        <input type="text" name="title" class="form-control form-control-sm form-control-dark mb-1"
+               placeholder="O que fazer?" required>
+        <div class="d-flex gap-1 mb-1">
+          <select name="kind" class="form-select form-select-sm form-control-dark" style="flex:1">
+            <option value="lembrete">Lembrete</option>
+            <option value="ligacao">Ligação</option>
+            <option value="followup_manual">FUP manual</option>
+            <option value="reuniao">Reunião</option>
+          </select>
+        </div>
+        <input type="datetime-local" name="scheduled_at"
+               class="form-control form-control-sm form-control-dark mb-1" required>
+        <button class="btn btn-sm btn-brand w-100"><i class="bi bi-calendar-plus"></i> Agendar</button>
+      </form>
+    </div>
+
+  </div>
+  {% endif %}
+</div>
+
+<!-- MODAL: novo lead -->
+<div class="modal fade" id="newLeadModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('lead_create') }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Novo lead</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2"><label class="form-label">Nome *</label><input type="text" name="name" class="form-control" required></div>
+          <div class="mb-2"><label class="form-label">Telefone</label><input type="text" name="phone" class="form-control"></div>
+          <div class="mb-2"><label class="form-label">E-mail</label><input type="email" name="email" class="form-control"></div>
+          <div class="mb-2"><label class="form-label">Empresa</label><input type="text" name="company" class="form-control"></div>
+          <div class="mb-2"><label class="form-label">Orçamento estipulado (R$)</label><input type="number" step="0.01" name="budget" class="form-control" placeholder="0,00"></div>
+          <div class="mb-2">
+            <label class="form-label">Origem</label>
+            <select name="source" class="form-select">
+              <option value="manual">Manual</option>
+              <option value="site">Site</option>
+              <option value="meta_ads">Meta Ads</option>
+              <option value="google_ads">Google Ads</option>
+              <option value="indicacao">Indicação</option>
+              <option value="evento">Evento</option>
+            </select>
+          </div>
+          <div class="alert alert-info" style="font-size:12px;">
+            <i class="bi bi-magic"></i> O lead será distribuído automaticamente pelo algoritmo proporcional e o consultor receberá um popup.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-brand">Criar lead</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

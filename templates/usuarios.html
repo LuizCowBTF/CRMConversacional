@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% set active_nav = 'usuarios' %}
+{% block title %}Usuários{% endblock %}
+{% block page_title %}Usuários{% endblock %}
+
+{% block topbar_extra %}
+<button class="btn btn-brand btn-sm" data-bs-toggle="modal" data-bs-target="#newUserModal">
+  <i class="bi bi-plus-lg"></i> Novo usuário
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="card-x">
+  <table class="x-table">
+    <thead><tr><th>Nome</th><th>E-mail</th><th>Função</th><th>Meta semanal</th><th>Status</th><th>Online</th><th></th></tr></thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td><b>{{ u.name }}</b></td>
+        <td>{{ u.email }}</td>
+        <td>
+          {% if u.role == 'admin' %}
+            <span class="chip warn">Administrador</span>
+          {% else %}
+            <span class="chip info">Consultor</span>
+          {% endif %}
+        </td>
+        <td>{{ u.weekly_quota }}</td>
+        <td>
+          {% if u.is_active %}
+            <span class="chip brand dot">Ativo</span>
+          {% else %}
+            <span class="chip danger dot">Inativo</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="status-dot {% if u.is_online %}online{% else %}offline{% endif %}"></span>
+          {% if u.is_online %}Online{% else %}Offline{% endif %}
+        </td>
+        <td>
+          <form method="POST" action="{{ url_for('usuario_toggle', uid=u.id) }}">
+            <button class="btn btn-sm btn-ghost">{% if u.is_active %}Desativar{% else %}Ativar{% endif %}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="modal fade" id="newUserModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('usuario_create') }}">
+        <div class="modal-header"><h5 class="modal-title">Novo usuário</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="mb-2"><label class="form-label">Nome</label><input type="text" name="name" class="form-control" required></div>
+          <div class="mb-2"><label class="form-label">E-mail</label><input type="email" name="email" class="form-control" required></div>
+          <div class="mb-2"><label class="form-label">Senha</label><input type="password" name="password" class="form-control" required></div>
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label">Função</label>
+              <select name="role" class="form-select">
+                <option value="consultor">Consultor</option>
+                <option value="admin">Administrador</option>
+              </select>
+            </div>
+            <div class="col-6"><label class="form-label">Meta semanal</label><input type="number" name="weekly_quota" value="20" class="form-control"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-brand">Criar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

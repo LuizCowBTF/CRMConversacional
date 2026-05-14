@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% set active_nav = 'followups' %}
+{% block title %}Follow-ups{% endblock %}
+{% block page_title %}Follow-ups globais{% endblock %}
+
+{% block topbar_extra %}
+{% if current_user.role == 'admin' %}
+<button class="btn btn-brand btn-sm" data-bs-toggle="modal" data-bs-target="#newFupModal">
+  <i class="bi bi-plus-lg"></i> Novo follow-up
+</button>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="alert alert-info mb-3" style="font-size:12.5px;">
+  <i class="bi bi-clock-history"></i>
+  Follow-ups são <b>globais</b>. Cada consultor pode escolher até <b>5 favoritos</b> que aparecem como botões rápidos no chat.
+  Disparos automáticos rodam por tempo (dias após última mensagem sem resposta).
+</div>
+
+<form method="POST" action="{{ url_for('followups_favorite') }}">
+  <div class="row g-3">
+    {% for f in followups %}
+    <div class="col-md-6 col-lg-4">
+      <div class="card-x" style="height:100%;">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <span class="chip warn">FUP {{ f.sequence }}</span>
+            <span class="fw-600 ms-1">{{ f.title }}</span>
+            <div class="fs-12 text-mute mt-1">Após {{ f.days_after }} dias sem resposta</div>
+          </div>
+          <div class="d-flex gap-2">
+            <label class="d-flex align-items-center gap-1" style="cursor:pointer;">
+              <input type="checkbox" name="fav" value="{{ f.id }}" {% if f.id in user.fav_followup_ids %}checked{% endif %}>
+              ⭐
+            </label>
+            {% if current_user.role == 'admin' %}
+            <form method="POST" action="{{ url_for('followup_delete', fid=f.id) }}" style="display:inline;" onsubmit="return confirm('Remover?')">
+              <button class="btn btn-sm btn-ghost"><i class="bi bi-trash"></i></button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        <div class="text-soft fs-13" style="white-space:pre-wrap;">{{ f.body }}</div>
+      </div>
+    </div>
+    {% else %}
+    <div class="col-12"><div class="card-x text-center text-mute">Nenhum follow-up criado.</div></div>
+    {% endfor %}
+  </div>
+
+  {% if followups %}
+  <div class="mt-3"><button class="btn btn-brand"><i class="bi bi-star"></i> Salvar favoritos (máx 5)</button></div>
+  {% endif %}
+</form>
+
+{% if current_user.role == 'admin' %}
+<div class="modal fade" id="newFupModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('followup_create') }}">
+        <div class="modal-header"><h5 class="modal-title">Novo follow-up</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="row g-2">
+            <div class="col-8"><label class="form-label">Título</label><input type="text" name="title" class="form-control" required></div>
+            <div class="col-2"><label class="form-label">FUP #</label><input type="number" name="sequence" class="form-control" value="1" min="1"></div>
+            <div class="col-2"><label class="form-label">Dias</label><input type="number" name="days_after" class="form-control" value="1" min="1"></div>
+          </div>
+          <div class="mb-2 mt-2"><label class="form-label">Mensagem</label><textarea name="body" class="form-control" rows="4" required></textarea></div>
+          <small class="text-mute">Variáveis: {{ '{{nome}}' }}, {{ '{{empresa}}' }}, {{ '{{consultor}}' }}</small>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-brand">Criar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
