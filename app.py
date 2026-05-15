@@ -1,6 +1,6 @@
 """
 CRM Conversacional - Sistema completo
-Stack: Flask + SQLAlchemy + SQLite + Bootstrap 5
+Stack: Flask + SQLAlchemy + SQLite + Bootstrap 5 + OpenAI + WhatsApp Cloud API
 Foco: Velocidade, simplicidade, distribuição inteligente, pipeline conversacional
 """
 
@@ -20,12 +20,58 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, desc
+from dotenv import load_dotenv
+
+# ============================================================================
+# Carregar variáveis de ambiente
+# ============================================================================
+load_dotenv()
+
+# ============================================================================
+# IMPORTS DOS MÓDULOS DE INTEGRAÇÃO (WhatsApp + IA)
+# ============================================================================
+try:
+    import whatsapp_integration
+    WHATSAPP_AVAILABLE = True
+except ImportError:
+    WHATSAPP_AVAILABLE = False
+    print("⚠️ Módulo whatsapp_integration não encontrado. WhatsApp desabilitado.")
+
+try:
+    import ai_assistant
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
+    print("⚠️ Módulo ai_assistant não encontrado. IA desabilitada.")
+
+# ============================================================================
+# CONFIGURAÇÕES DAS APIs (lidas do .env)
+# ============================================================================
+
+# ============================================================================
+# Configurações WhatsApp
+# ============================================================================
+WHATSAPP_ACCESS_TOKEN = os.getenv('WHATSAPP_ACCESS_TOKEN')
+WHATSAPP_PHONE_NUMBER_ID = os.getenv('WHATSAPP_PHONE_NUMBER_ID')
+WHATSAPP_VERIFY_TOKEN = os.getenv('WHATSAPP_VERIFY_TOKEN')
+
+# ============================================================================
+# Configurações OpenAI
+# ============================================================================
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')
+
+# ============================================================================
+# Configurações API Externa (Corretores)
+# ============================================================================
+EXTERNAL_API_USER = os.getenv('EXTERNAL_API_USER')
+EXTERNAL_API_PASSWORD = os.getenv('EXTERNAL_API_PASSWORD')
 
 # ----------------------------------------------------------------------------
 # CONFIG
 # ----------------------------------------------------------------------------
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'crm-conversacional-secret-key-change-in-prod'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'crm-conversacional-secret-key-change-in-prod')
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _INSTANCE_DIR = os.path.join(_BASE_DIR, 'instance')
 _UPLOAD_DIR = os.path.join(_BASE_DIR, 'static', 'uploads')
@@ -37,7 +83,9 @@ app.config['UPLOAD_FOLDER'] = _UPLOAD_DIR
 app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024  # 25 MB
 db = SQLAlchemy(app)
 
+# ============================================================================
 # Estágios do pipeline (conforme spec)
+# ============================================================================
 PIPELINE_STAGES = [
     ('mensagem_enviada', 'Mensagem Enviada'),
     ('em_conversacao', 'Em Conversação'),
@@ -60,7 +108,9 @@ STAGE_SHORT = {
     'lead_frio':        'L.Fr',
 }
 
+# ============================================================================
 # Etapas que disparam formulário obrigatório
+# ============================================================================
 STAGE_FORMS = {
     'cotacao_enviada':      ['operadora', 'subproduto', 'valor', 'vidas', 'bairro'],
     'proposta_digitada':    ['confirm_quotation'],
@@ -69,7 +119,9 @@ STAGE_FORMS = {
     'plano_fechado':        [],
 }
 
+# ============================================================================
 # Roles disponíveis no sistema
+# ============================================================================
 ROLES = ['master', 'admin', 'coordenador', 'lider', 'consultor']
 ROLE_LABEL = {
     'master': 'Master',
@@ -79,7 +131,9 @@ ROLE_LABEL = {
     'consultor': 'Consultor',
 }
 
+# ============================================================================
 # Lista oficial de planos/operadoras
+# ============================================================================
 PLANOS_OFICIAIS = [
     # ADESÃO
     ('ADESÃO', 'Amil'), ('ADESÃO', 'Ampla'), ('ADESÃO', 'Assim'), ('ADESÃO', 'Cemeru'),
@@ -101,33 +155,26 @@ PLANOS_OFICIAIS = [
 # ----------------------------------------------------------------------------
 # MODELS
 # ----------------------------------------------------------------------------
-
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), default='consultor')  # master | admin | coordenador | lider | consultor
+    role = db.Column(db.String(20), default='consultor')
     weekly_quota = db.Column(db.Integer, default=20)
     is_online = db.Column(db.Boolean, default=True)
     is_active = db.Column(db.Boolean, default=True)
-    is_blocked = db.Column(db.Boolean, default=False)  # bloqueado por master/coordenador (não recebe lead, não envia msg)
+    is_blocked = db.Column(db.Boolean, default=False)
     blocked_reason = db.Column(db.String(255), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Hierarquia: cada usuário aponta para seu superior direto
-    # consultor → líder; líder → coordenador; coordenador → master; etc.
     manager_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     manager = db.relationship('User', remote_side=[id], backref='subordinados')
-
-    favorite_templates = db.Column(db.String(255), default='')  # ids separados por vírgula (max 3)
-    favorite_followups = db.Column(db.String(255), default='')  # ids separados por vírgula (max 5)
-
-    # Cadência pessoal de follow-up (preferências do corretor)
-    cadence_per_day = db.Column(db.Integer, default=2)        # quantos FUPs por dia (1-4)
-    cadence_days = db.Column(db.Integer, default=3)           # quantos dias mantém cadência (1-3)
-    cadence_interval_hours = db.Column(db.Integer, default=3) # intervalo mínimo entre FUPs no mesmo dia
+    favorite_templates = db.Column(db.String(255), default='')
+    favorite_followups = db.Column(db.String(255), default='')
+    cadence_per_day = db.Column(db.Integer, default=2)
+    cadence_days = db.Column(db.Integer, default=3)
+    cadence_interval_hours = db.Column(db.Integer, default=3)
 
     def set_password(self, pw):
         self.password_hash = generate_password_hash(pw)
@@ -151,8 +198,8 @@ class Lead(db.Model):
     phone = db.Column(db.String(40))
     email = db.Column(db.String(120))
     company = db.Column(db.String(120))
-    source = db.Column(db.String(60), default='manual')  # origem (OCULTA para consultor se não foi ele que cadastrou)
-    source_visible_to_consultor = db.Column(db.Boolean, default=False)  # true só se consultor criou
+    source = db.Column(db.String(60), default='manual')
+    source_visible_to_consultor = db.Column(db.Boolean, default=False)
     stage = db.Column(db.String(40), default='mensagem_enviada')
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     tags = db.Column(db.String(255), default='')
@@ -162,20 +209,14 @@ class Lead(db.Model):
     last_inbound_at = db.Column(db.DateTime)
     last_outbound_at = db.Column(db.DateTime)
     sent_without_response = db.Column(db.Integer, default=0)
-
-    # Qualificação inicial (vem do form/API)
-    tem_cnpj = db.Column(db.Boolean)  # True = PME, False = PF
-    categoria = db.Column(db.String(20))  # PF | PME | ADESAO (derivado de tem_cnpj quando aplicável)
-    vidas = db.Column(db.Integer)  # quantas vidas (pode vir nulo da origem)
-    preferencia_contato = db.Column(db.String(20), default='whatsapp')  # whatsapp | email | telefone
-
-    # Negócio
+    tem_cnpj = db.Column(db.Boolean)
+    categoria = db.Column(db.String(20))
+    vidas = db.Column(db.Integer)
+    preferencia_contato = db.Column(db.String(20), default='whatsapp')
     budget = db.Column(db.Float, default=0.0)
     moved_to_remarketing_at = db.Column(db.DateTime)
     fups_sent_today = db.Column(db.Integer, default=0)
     fups_last_date = db.Column(db.Date)
-
-    # Quando entrou na etapa atual (resgatado pelo dashboard)
     stage_entered_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     owner = db.relationship('User', backref='leads')
@@ -194,7 +235,6 @@ class Lead(db.Model):
 
     @property
     def sla_minutes(self):
-        """tempo desde a última mensagem inbound não respondida"""
         if not self.last_inbound_at:
             return None
         if self.last_outbound_at and self.last_outbound_at > self.last_inbound_at:
@@ -207,10 +247,10 @@ class Message(db.Model):
     __tablename__ = 'messages'
     id = db.Column(db.Integer, primary_key=True)
     lead_id = db.Column(db.Integer, db.ForeignKey('leads.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # null = inbound do lead
-    direction = db.Column(db.String(10))  # 'in' (do lead) | 'out' (do consultor)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    direction = db.Column(db.String(10))
     body = db.Column(db.Text, nullable=False)
-    kind = db.Column(db.String(20), default='text')  # text | template | followup | snippet | note
+    kind = db.Column(db.String(20), default='text')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     lead = db.relationship('Lead', backref=db.backref('messages', order_by='Message.created_at'))
@@ -232,8 +272,8 @@ class FollowUp(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(120), nullable=False)
     body = db.Column(db.Text, nullable=False)
-    days_after = db.Column(db.Integer, default=1)  # disparo automático após X dias sem resposta
-    sequence = db.Column(db.Integer, default=1)  # FUP 1, 2, 3...
+    days_after = db.Column(db.Integer, default=1)
+    sequence = db.Column(db.Integer, default=1)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
 
@@ -242,7 +282,7 @@ class Snippet(db.Model):
     __tablename__ = 'snippets'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    shortcut = db.Column(db.String(30), nullable=False)  # ex: /oi
+    shortcut = db.Column(db.String(30), nullable=False)
     body = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -263,7 +303,6 @@ class AuditLog(db.Model):
 
 
 class DistributionRule(db.Model):
-    """Marca configuração geral da distribuição"""
     __tablename__ = 'distribution_rules'
     id = db.Column(db.Integer, primary_key=True)
     mode = db.Column(db.String(30), default='round_robin_proporcional')
@@ -272,18 +311,17 @@ class DistributionRule(db.Model):
 
 
 class Task(db.Model):
-    """Tarefa agendada pelo corretor (lembrete/ligação/follow-up manual)"""
     __tablename__ = 'tasks'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    lead_id = db.Column(db.Integer, db.ForeignKey('leads.id'))  # opcional
+    lead_id = db.Column(db.Integer, db.ForeignKey('leads.id'))
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, default='')
-    kind = db.Column(db.String(30), default='lembrete')  # lembrete | ligacao | followup_manual | reuniao
+    kind = db.Column(db.String(30), default='lembrete')
     scheduled_at = db.Column(db.DateTime, nullable=False)
     done = db.Column(db.Boolean, default=False)
     done_at = db.Column(db.DateTime)
-    triggered = db.Column(db.Boolean, default=False)  # se já mostrou popup
+    triggered = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', backref='tasks')
@@ -291,7 +329,6 @@ class Task(db.Model):
 
 
 class Attachment(db.Model):
-    """Anexo de mensagem (imagem, pdf, áudio, qualquer arquivo)"""
     __tablename__ = 'attachments'
     id = db.Column(db.Integer, primary_key=True)
     message_id = db.Column(db.Integer, db.ForeignKey('messages.id'), nullable=False)
@@ -306,10 +343,9 @@ class Attachment(db.Model):
 
 
 class Operadora(db.Model):
-    """Operadora/plano oficial — admin gerencia."""
     __tablename__ = 'operadoras'
     id = db.Column(db.Integer, primary_key=True)
-    categoria = db.Column(db.String(20), nullable=False)  # ADESÃO | PF | PME
+    categoria = db.Column(db.String(20), nullable=False)
     nome = db.Column(db.String(120), nullable=False)
     is_active = db.Column(db.Boolean, default=True)
 
@@ -319,7 +355,6 @@ class Operadora(db.Model):
 
 
 class Quotation(db.Model):
-    """Cotação enviada para um lead (preenchida ao mover para 'cotacao_enviada')."""
     __tablename__ = 'quotations'
     id = db.Column(db.Integer, primary_key=True)
     lead_id = db.Column(db.Integer, db.ForeignKey('leads.id'), nullable=False)
@@ -328,7 +363,6 @@ class Quotation(db.Model):
     valor = db.Column(db.Float, nullable=False, default=0.0)
     vidas = db.Column(db.Integer, nullable=False, default=1)
     bairro = db.Column(db.String(120), nullable=False)
-    # Fase de pagamento (preenchido ao avançar para 'aguardando_pagamento')
     data_boleto = db.Column(db.Date)
     data_vigencia = db.Column(db.Date)
     confirmed_at_proposta = db.Column(db.DateTime)
@@ -340,11 +374,10 @@ class Quotation(db.Model):
 
 
 class LeadStageHistory(db.Model):
-    """Registra cada mudança de etapa do lead — base para dashboard por período."""
     __tablename__ = 'lead_stage_history'
     id = db.Column(db.Integer, primary_key=True)
     lead_id = db.Column(db.Integer, db.ForeignKey('leads.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # quem fez a mudança
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     from_stage = db.Column(db.String(40))
     to_stage = db.Column(db.String(40), nullable=False)
     entered_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -353,16 +386,14 @@ class LeadStageHistory(db.Model):
     user = db.relationship('User')
 
 
-# Token simples para a API de inbound (em produção: trocar por OAuth/JWT por origem)
+# Token simples para a API de inbound
 INBOUND_API_TOKEN = os.environ.get('CRM_INBOUND_TOKEN', 'demo-token-troque-em-prod')
 
 
-# ----------------------------------------------------------------------------
+# ============================================================================
 # HELPERS
-# ----------------------------------------------------------------------------
-
+# ============================================================================
 def log(action, detail='', lead_id=None, user_id=None):
-    """Registra auditoria"""
     entry = AuditLog(
         action=action,
         detail=detail,
@@ -389,7 +420,6 @@ def login_required(f):
 
 
 def role_required(*allowed_roles):
-    """Decorador para restringir rotas a determinados papéis."""
     def deco(f):
         @wraps(f)
         def wrap(*args, **kwargs):
@@ -402,15 +432,10 @@ def role_required(*allowed_roles):
     return deco
 
 
-# Mantém compat com decorador antigo
 admin_required = role_required('admin', 'master')
 
 
-# ============================================================================
-# HIERARQUIA & PERMISSÕES — núcleo do sistema
-# ============================================================================
 def descendants_of(user):
-    """Retorna recursivamente todos os usuários abaixo do `user` na hierarquia."""
     seen = set()
     stack = [user.id]
     while stack:
@@ -424,14 +449,6 @@ def descendants_of(user):
 
 
 def visible_user_ids(user):
-    """IDs dos usuários cujos leads esse user pode ENXERGAR (conversas).
-
-    - master: todos
-    - coordenador: subordinados (todos níveis abaixo) + ele mesmo
-    - lider: NÃO vê conversas (só métricas agregadas) — set vazio
-    - admin: NÃO vê conversas (é operacional) — set vazio
-    - consultor: só ele mesmo
-    """
     if not user:
         return set()
     if user.role == 'master':
@@ -441,8 +458,8 @@ def visible_user_ids(user):
         ids.add(user.id)
         return ids
     if user.role in ('lider', 'admin'):
-        return set()  # não acessam conversas
-    return {user.id}  # consultor
+        return set()
+    return {user.id}
 
 
 def can_see_lead(user, lead):
@@ -456,13 +473,6 @@ def can_see_lead(user, lead):
 
 
 def can_act_on_lead(user, lead):
-    """Pode enviar msg, mudar stage, redistribuir, bloquear corretor.
-
-    - master: pode tudo, em qualquer lead
-    - coordenador: pode tudo em leads de seus subordinados
-    - consultor (owner): pode tudo no próprio lead se não estiver bloqueado
-    - admin / lider: não atuam em conversa
-    """
     if not user or not lead:
         return False
     if user.role == 'master':
@@ -475,7 +485,6 @@ def can_act_on_lead(user, lead):
 
 
 def filter_leads_by_visibility(query, user):
-    """Aplica filtro de visibilidade ao query de Leads."""
     if user.role == 'master':
         return query
     if user.role == 'coordenador':
@@ -488,20 +497,14 @@ def filter_leads_by_visibility(query, user):
 
 
 def can_manage_users(user):
-    """Cadastrar/editar consultores, definir distribuição, gerenciar templates.
-    - master: sim (visão total)
-    - admin: sim (papel operacional)
-    """
     return user and user.role in ('master', 'admin')
 
 
 def can_view_audit(user):
-    """Sistema de auditoria continua existindo, acessível só ao master."""
     return user and user.role == 'master'
 
 
 def can_block_consultor(user, target):
-    """Quem pode bloquear o consultor `target`?"""
     if not user or not target or target.role != 'consultor':
         return False
     if user.role == 'master':
@@ -509,7 +512,6 @@ def can_block_consultor(user, target):
     if user.role == 'coordenador':
         return target.id in visible_user_ids(user)
     return False
-
 
 
 @app.context_processor
@@ -557,7 +559,6 @@ def inject_globals():
 
 
 def render_variables(text, lead, user):
-    """Substitui {{nome}}, {{empresa}}, {{consultor}} etc."""
     if not text:
         return text
     mapping = {
@@ -573,19 +574,7 @@ def render_variables(text, lead, user):
     return re.sub(r'\{\{\s*([a-zA-Z_]+)\s*\}\}', repl, text)
 
 
-# ----------------------------------------------------------------------------
-# DISTRIBUIÇÃO INTELIGENTE
-# ----------------------------------------------------------------------------
-
 def pick_next_owner():
-    """
-    Algoritmo de distribuição inteligente:
-    - Round-robin proporcional baseado em meta semanal
-    - Considera leads já recebidos na semana
-    - Pula usuários offline (fallback)
-    - Calcula 'pressure' = recebidos / meta. Menor pressure = próximo da fila.
-    - Desempate: menos recebidos hoje.
-    """
     users = User.query.filter_by(role='consultor', is_active=True).all()
     if not users:
         return None
@@ -594,7 +583,7 @@ def pick_next_owner():
     if rule and rule.redistribute_offline:
         candidates = [u for u in users if u.is_online]
         if not candidates:
-            candidates = users  # fallback: ignora online se ninguém estiver
+            candidates = users
     else:
         candidates = users
 
@@ -614,7 +603,6 @@ def pick_next_owner():
         ).count()
         quota = max(u.weekly_quota, 1)
         pressure = week_count / quota
-        # score: priorizamos quem tem MENOR pressure, depois menos leads hoje
         score = (pressure, day_count, u.id)
         if best_score is None or score < best_score:
             best_score = score
@@ -622,23 +610,12 @@ def pick_next_owner():
     return best
 
 
-# ----------------------------------------------------------------------------
-# AUTOMAÇÃO: FOLLOW-UPS E LEADS FRIOS
-# ----------------------------------------------------------------------------
-
 def run_automations():
-    """
-    Roda automações sempre que dashboard/conversas/tarefas são acessadas:
-    1. Reset diário de fups_sent_today (se o dia mudou)
-    2. Move leads com cadência esgotada (3 dias + max/dia FUPs) para REMARKETING
-    3. Move leads em mensagem_enviada sem resposta há X dias para lead_frio
-    """
     today = date.today()
     rule = DistributionRule.query.first()
     cold_days = rule.cold_after_days if rule else 3
     threshold = datetime.utcnow() - timedelta(days=cold_days)
 
-    # 1) Reset diário do contador fups_sent_today
     leads_to_reset = Lead.query.filter(
         db.or_(Lead.fups_last_date.is_(None), Lead.fups_last_date < today)
     ).all()
@@ -646,7 +623,6 @@ def run_automations():
         lead.fups_sent_today = 0
         lead.fups_last_date = today
 
-    # 2) Move para REMARKETING (cadência esgotada: 3+ FUPs e 3+ dias sem resposta)
     remarketing_targets = Lead.query.filter(
         Lead.moved_to_remarketing_at.is_(None),
         Lead.last_outbound_at.isnot(None),
@@ -663,7 +639,6 @@ def run_automations():
                 lead_id=lead.id,
             )
             db.session.add(entry)
-            # Cria tarefa automática de ligação para o owner
             if lead.owner_id:
                 task = Task(
                     user_id=lead.owner_id,
@@ -678,10 +653,152 @@ def run_automations():
     db.session.commit()
 
 
+# ============================================================================
+# ROTAS DO WHATSAPP WEBHOOK
+# ============================================================================
+@app.route('/webhook/whatsapp', methods=['GET'])
+def verify_whatsapp_webhook():
+    """Verificação do webhook do WhatsApp (Meta Cloud API)"""
+    verify_token = WHATSAPP_VERIFY_TOKEN
+    
+    mode = request.args.get('hub.mode')
+    token = request.args.get('hub.verify_token')
+    challenge = request.args.get('hub.challenge')
+    
+    if mode and token and mode == 'subscribe' and token == verify_token:
+        return challenge, 200
+    return "Verification failed", 403
+
+
+@app.route('/webhook/whatsapp', methods=['POST'])
+def handle_whatsapp_webhook():
+    """Recebe mensagens do WhatsApp"""
+    data = request.json
+    
+    try:
+        entry = data.get('entry', [])[0]
+        changes = entry.get('changes', [])[0]
+        value = changes.get('value', {})
+        messages = value.get('messages', [])
+        
+        if messages:
+            message = messages[0]
+            phone_number = message.get('from')
+            text = message.get('text', {}).get('body', '')
+            
+            lead = Lead.query.filter_by(phone=phone_number).first()
+            if not lead:
+                lead = Lead(
+                    name=f"Lead WhatsApp {phone_number}",
+                    phone=phone_number,
+                    stage='mensagem_enviada'
+                )
+                db.session.add(lead)
+                db.session.commit()
+            
+            new_message = Message(
+                lead_id=lead.id,
+                direction='in',
+                body=text,
+                kind='text'
+            )
+            db.session.add(new_message)
+            db.session.commit()
+            
+            # Se IA estiver disponível, gerar sugestão de resposta
+            if AI_AVAILABLE and OPENAI_API_KEY:
+                try:
+                    from ai_assistant import get_ai_response
+                    lead_context = f"Lead: {lead.name}, Estágio: {lead.stage}"
+                    resposta_sugerida = get_ai_response(text, lead_context)
+                    # Salvar como sugestão (não envia automaticamente)
+                    log('ai_suggestion', f'Sugestão IA: {resposta_sugerida[:100]}', lead_id=lead.id)
+                except Exception as e:
+                    print(f"Erro na IA: {e}")
+            
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================================
+# ROTA PARA SINCRONIZAR CORRETORES DA API EXTERNA
+# ============================================================================
+@app.route('/api/sync/brokers', methods=['POST'])
+@login_required
+def sync_external_brokers():
+    """Sincroniza corretores da API externa"""
+    import requests
+    from requests.auth import HTTPBasicAuth
+    
+    user = current_user()
+    if user.role not in ('admin', 'master'):
+        return jsonify({'error': 'Permissão negada'}), 403
+    
+    api_url = 'https://corretores.almeidaconsultoriasaude.com/'
+    api_user = EXTERNAL_API_USER
+    api_password = EXTERNAL_API_PASSWORD
+    
+    if not api_user or not api_password:
+        return jsonify({'error': 'Credenciais da API não configuradas no .env (EXTERNAL_API_USER/EXTERNAL_API_PASSWORD)'}), 500
+    
+    try:
+        response = requests.get(
+            api_url,
+            auth=HTTPBasicAuth(api_user, api_password),
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            return jsonify({'error': f'API retornou {response.status_code}'}), 500
+        
+        brokers = response.json()
+        imported = 0
+        
+        for broker in brokers:
+            email = broker.get('email')
+            name = broker.get('nome') or broker.get('name')
+            
+            if email and name:
+                existing = User.query.filter_by(email=email).first()
+                if not existing:
+                    new_user = User(
+                        name=name,
+                        email=email,
+                        role='consultor',
+                        weekly_quota=20
+                    )
+                    new_user.set_password('default123')
+                    db.session.add(new_user)
+                    imported += 1
+        
+        db.session.commit()
+        return jsonify({'imported': imported, 'total': len(brokers)})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# ROTA DE SAÚDE (HEALTH CHECK)
+# ============================================================================
+@app.route('/health')
+def health_check():
+    """Endpoint para verificar se o serviço está rodando"""
+    return jsonify({
+        'status': 'ok',
+        'message': 'CRM Conversacional está rodando!',
+        'whatsapp_available': WHATSAPP_AVAILABLE,
+        'ai_available': AI_AVAILABLE
+    }), 200
+
+
+# ============================================================================
+# AQUI VEM TODAS AS ROTAS EXISTENTES (conversas, pipeline, dashboard, etc)
+# ============================================================================
 # ----------------------------------------------------------------------------
 # ROTAS — AUTH
 # ----------------------------------------------------------------------------
-
 @app.route('/')
 def index():
     if session.get('user_id'):
@@ -719,15 +836,12 @@ def logout():
 # ----------------------------------------------------------------------------
 # ROTAS — DASHBOARD
 # ----------------------------------------------------------------------------
-
 @app.route('/dashboard')
 @login_required
 def dashboard():
     run_automations()
     u = current_user()
 
-    # === FILTRO DE PERÍODO ===
-    # 'today' | '7d' | '30d' | 'month' | 'custom' (com de=/ate=)
     periodo = request.args.get('periodo', '30d')
     now = datetime.utcnow()
     today_0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -747,27 +861,22 @@ def dashboard():
         except ValueError:
             date_from = now - timedelta(days=30)
             date_to = now
-    else:  # 30d (padrão)
+    else:
         date_from = now - timedelta(days=30)
         date_to = now
 
-    # Filtro adicional: consultor específico (master/coordenador pode escolher)
     filter_user_id = request.args.get('consultor', type=int)
 
-    # === BASE QUERY com visibilidade hierárquica ===
-    # Admin e Líder: para métricas, podem ver agregado da empresa toda
-    # (mas continuam SEM acessar conversas individualmente)
     if u.role in ('admin', 'lider', 'master'):
         base = Lead.query
     elif u.role == 'coordenador':
         base = Lead.query.filter(Lead.owner_id.in_(visible_user_ids(u)))
-    else:  # consultor
+    else:
         base = Lead.query.filter(Lead.owner_id == u.id)
 
     if filter_user_id and u.role in ('master', 'admin', 'coordenador', 'lider'):
         base = base.filter(Lead.owner_id == filter_user_id)
 
-    # Métricas operacionais (no período)
     leads_periodo = base.filter(Lead.created_at >= date_from, Lead.created_at <= date_to)
     total_periodo = leads_periodo.count()
     leads_today = base.filter(Lead.created_at >= today_0).count()
@@ -784,22 +893,18 @@ def dashboard():
     response_rate = round((responded / total_leads * 100), 1) if total_leads else 0
     conversion_rate = round((closed / total_leads * 100), 1) if total_leads else 0
 
-    # Contagem e valor por etapa
     stages_count = {}
     stages_value = {}
     for stage_id, _ in PIPELINE_STAGES:
         q = base.filter(Lead.stage == stage_id)
         stages_count[stage_id] = q.count()
-        # Soma do orçamento (budget) E do valor da cotação por etapa
         v = db.session.query(func.coalesce(func.sum(Lead.budget), 0.0))\
             .filter(Lead.id.in_(q.with_entities(Lead.id))).scalar() or 0
-        # Se houver quotation.valor, prefere
         qv = db.session.query(func.coalesce(func.sum(Quotation.valor), 0.0))\
             .join(Lead, Lead.id == Quotation.lead_id)\
             .filter(Lead.stage == stage_id, Lead.id.in_([l.id for l in base.all()] or [-1])).scalar() or 0
         stages_value[stage_id] = float(qv if qv > 0 else v)
 
-    # Receita potencial / fechada / perdida no PERÍODO
     active_stages = ['mensagem_enviada', 'em_conversacao', 'cotacao_enviada',
                      'proposta_digitada', 'em_analise', 'aguardando_pagamento']
     rev_pot_q = base.filter(Lead.stage.in_(active_stages))
@@ -816,7 +921,6 @@ def dashboard():
     revenue_closed = sum_budget(rev_closed_q)
     revenue_lost = sum_budget(rev_lost_q)
 
-    # Produtividade da equipe (visível por master/admin/coordenador/lider)
     consultants = []
     if u.role in ('master', 'admin', 'coordenador', 'lider'):
         if u.role == 'coordenador':
@@ -853,14 +957,12 @@ def dashboard():
 
     avg_response_time = compute_avg_response_time(u)
 
-    # Origem dos leads (top 5) — apenas para master/admin/coordenador
     sources = []
     if u.role in ('master', 'admin', 'coordenador'):
         sources_q = db.session.query(Lead.source, func.count(Lead.id))
         sources_q = sources_q.filter(Lead.id.in_(base.with_entities(Lead.id)))
         sources = sources_q.group_by(Lead.source).order_by(desc(func.count(Lead.id))).limit(5).all()
 
-    # Para os filtros: lista de consultores visíveis
     visible_consultants = []
     if u.role == 'master' or u.role == 'admin':
         visible_consultants = User.query.filter_by(role='consultor').order_by(User.name).all()
@@ -870,7 +972,6 @@ def dashboard():
             User.role == 'consultor'
         ).order_by(User.name).all()
     elif u.role == 'lider':
-        # Líder filtra pelos consultores diretamente subordinados a ele
         visible_consultants = [usr for usr in descendants_of(u) if usr.role == 'consultor']
         visible_consultants.sort(key=lambda x: x.name)
 
@@ -887,13 +988,11 @@ def dashboard():
         revenue_closed=revenue_closed,
         revenue_lost=revenue_lost,
         sources=sources,
-        # Modo restrito: líder e admin não veem detalhes de leads individuais
         is_aggregated_view=(u.role in ('lider', 'admin')),
     )
 
 
 def compute_avg_response_time(user):
-    """Tempo médio entre msg inbound e próxima outbound (minutos)"""
     base = filter_leads_by_visibility(Lead.query, user)
     leads = base.limit(200).all()
     times = []
@@ -905,7 +1004,7 @@ def compute_avg_response_time(user):
                 last_in = m.created_at
             elif m.direction == 'out' and last_in:
                 delta = (m.created_at - last_in).total_seconds() / 60
-                if 0 < delta < 60*24:  # ignora outliers
+                if 0 < delta < 60*24:
                     times.append(delta)
                 last_in = None
     if not times:
@@ -916,21 +1015,18 @@ def compute_avg_response_time(user):
 # ----------------------------------------------------------------------------
 # ROTAS — CONVERSAS
 # ----------------------------------------------------------------------------
-
 @app.route('/conversas')
 @login_required
 def conversas():
     run_automations()
     u = current_user()
 
-    # Líder não acessa conversas — só vê métricas
     if u.role == 'lider':
         flash('Líderes não têm acesso ao conteúdo das conversas. Use o Dashboard.', 'info')
         return redirect(url_for('dashboard'))
 
     filter_stage = request.args.get('stage', '')
     search = request.args.get('q', '').strip()
-    # Filtro de consultor (master/admin/coordenador podem escolher)
     filter_user_id = request.args.get('consultor', type=int)
 
     q = filter_leads_by_visibility(Lead.query, u)
@@ -959,7 +1055,6 @@ def conversas():
     fav_followups = [f for f in followups if f.id in u.fav_followup_ids]
     user_snippets = Snippet.query.filter_by(user_id=u.id).all()
 
-    # Lista de consultores visíveis (para filtro de gestor)
     visible_consultants = []
     if u.role in ('master', 'admin', 'coordenador'):
         visible_consultants = User.query.filter(
@@ -967,9 +1062,7 @@ def conversas():
             User.role == 'consultor'
         ).order_by(User.name).all()
 
-    # Permissão de ação na conversa selecionada
     can_act = can_act_on_lead(u, selected) if selected else False
-    # Operadoras (para o modal de cotação)
     operadoras = Operadora.query.filter_by(is_active=True).order_by(Operadora.categoria, Operadora.nome).all()
 
     return render_template('conversas.html',
@@ -999,9 +1092,6 @@ def send_message(lead_id):
         flash('Mensagem vazia.', 'warning')
         return redirect(url_for('conversas', lead=lead_id))
 
-    # === REGRA DE CADÊNCIA ===
-    # Aplica somente em mensagens kind=followup ou template (não em texto livre conversacional).
-    # Texto livre é resposta direta do corretor, não consome cadência.
     is_followup_kind = kind in ('followup', 'template')
     today = date.today()
     if lead.fups_last_date != today:
@@ -1013,7 +1103,6 @@ def send_message(lead_id):
         if lead.fups_sent_today >= max_per_day:
             flash(f'Limite diário de cadência atingido ({max_per_day} FUPs/dia para este lead). Ajuste em Preferências.', 'warning')
             return redirect(url_for('conversas', lead=lead_id))
-        # Intervalo mínimo entre FUPs no mesmo dia
         min_interval = timedelta(hours=u.cadence_interval_hours or 3)
         last_fup = Message.query.filter(
             Message.lead_id == lead.id,
@@ -1041,7 +1130,6 @@ def send_message(lead_id):
 @app.route('/conversas/<int:lead_id>/simulate-inbound', methods=['POST'])
 @login_required
 def simulate_inbound(lead_id):
-    """Simula uma resposta do lead (para demo) — em produção viria via webhook do WhatsApp"""
     u = current_user()
     lead = Lead.query.get_or_404(lead_id)
     body = request.form.get('body', '').strip()
@@ -1052,7 +1140,6 @@ def simulate_inbound(lead_id):
     lead.last_message_at = datetime.utcnow()
     lead.last_inbound_at = datetime.utcnow()
     lead.sent_without_response = 0
-    # Regra automática: ao responder, volta para "em_conversacao"
     if lead.stage in ('mensagem_enviada', 'lead_frio'):
         old = lead.stage
         lead.stage = 'em_conversacao'
@@ -1093,9 +1180,8 @@ def change_stage(lead_id):
     if old == new_stage:
         return redirect(url_for('conversas', lead=lead_id))
 
-    # ===== FORMULÁRIO OBRIGATÓRIO POR ETAPA =====
     required = STAGE_FORMS.get(new_stage, [])
-    q = lead.quotation  # cotação atual (1:1)
+    q = lead.quotation
 
     if new_stage == 'cotacao_enviada':
         operadora_id = request.form.get('operadora_id', type=int)
@@ -1117,14 +1203,13 @@ def change_stage(lead_id):
         else:
             q.operadora_id = operadora_id; q.subproduto = subproduto
             q.valor = valor; q.vidas = vidas; q.bairro = bairro
-        lead.budget = valor  # sincroniza budget com valor da cotação
+        lead.budget = valor
         lead.vidas = vidas
 
     elif new_stage == 'proposta_digitada':
         if not q:
             flash('Lead não tem cotação. Avance primeiro para "Cotação Enviada".', 'danger')
             return redirect(url_for('conversas', lead=lead_id))
-        # Confirma os itens (permite editar)
         if 'subproduto' in request.form:
             q.subproduto = request.form.get('subproduto', q.subproduto).strip()
             try:
@@ -1162,10 +1247,8 @@ def change_stage(lead_id):
         q.data_boleto = data_boleto
         q.data_vigencia = data_vigencia
 
-    # ===== APLICA MUDANÇA =====
     lead.stage = new_stage
     lead.stage_entered_at = datetime.utcnow()
-    # Histórico
     history = LeadStageHistory(
         lead_id=lead.id, user_id=u.id,
         from_stage=old, to_stage=new_stage,
@@ -1189,7 +1272,6 @@ def add_note(lead_id):
         log('note_added', f'Nota interna: {note[:80]}', lead_id=lead.id)
         db.session.commit()
     return redirect(url_for('conversas', lead=lead_id))
-
 
 # ----------------------------------------------------------------------------
 # ROTAS — PIPELINE / KANBAN
@@ -2350,12 +2432,17 @@ def operadoras_list():
 
 # ----------------------------------------------------------------------------
 
+
+
+# ============================================================================
+# FUNÇÃO DE SEED E RUN
+# ============================================================================
+
 def seed_data():
     if User.query.first():
         return
     print('Populando dados de demonstração...')
 
-    # ===== HIERARQUIA: MASTER → COORDENADOR → LÍDER → CONSULTORES =====
     master = User(name='Master', email='master@crm.com', role='master', weekly_quota=0)
     master.set_password('master')
     db.session.add(master); db.session.flush()
@@ -2375,7 +2462,6 @@ def seed_data():
     lider.set_password('123456')
     db.session.add(lider); db.session.flush()
 
-    # Consultores: 3 reportam ao líder
     roberto = User(name='Roberto', email='roberto@crm.com', role='consultor',
                    weekly_quota=50, manager_id=lider.id)
     roberto.set_password('123456')
@@ -2388,11 +2474,9 @@ def seed_data():
     db.session.add_all([roberto, marcio, fernando])
     db.session.flush()
 
-    # ===== OPERADORAS oficiais =====
     for categoria, nome in PLANOS_OFICIAIS:
         db.session.add(Operadora(categoria=categoria, nome=nome))
 
-    # Templates globais
     templates = [
         Template(title='Abordagem Inicial', category='abordagem',
                  body='Olá {{nome}}! Aqui é {{consultor}}. Tudo bem? Vi que você se interessou pelos nossos serviços e queria entender melhor o que está buscando.'),
@@ -2408,10 +2492,8 @@ def seed_data():
     db.session.add_all(templates)
     db.session.flush()
 
-    # Marca primeira template como favorita do Roberto (para a 1ª msg automática via API funcionar)
     roberto.favorite_templates = str(templates[0].id)
 
-    # Follow-ups globais
     fups = [
         FollowUp(title='FUP 1 - Verificação', sequence=1, days_after=1,
                  body='Olá {{nome}}, conseguiu analisar?'),
@@ -2424,7 +2506,6 @@ def seed_data():
     ]
     db.session.add_all(fups)
 
-    # Snippets de exemplo (Roberto)
     db.session.add_all([
         Snippet(user_id=roberto.id, shortcut='/oi', body='Bom dia!'),
         Snippet(user_id=roberto.id, shortcut='/verif', body='Vou verificar e já te retorno.'),
@@ -2433,9 +2514,7 @@ def seed_data():
         Snippet(user_id=roberto.id, shortcut='/obg', body='Obrigado pelo retorno!'),
     ])
 
-    # Leads de demonstração (com BUDGET)
     sample_leads = [
-        # name, phone, email, company, source, owner, stage, budget, tem_cnpj, vidas, pref
         ('Carlos Mendes', '21999990001', 'carlos@empresa.com', 'Tech Solutions', 'meta_ads', roberto.id, 'em_conversacao', 4500, True, 8, 'whatsapp'),
         ('Ana Souza', '21999990002', 'ana@empresa.com', '', 'site', roberto.id, 'cotacao_enviada', 12000, False, 2, 'whatsapp'),
         ('Pedro Lima', '21999990003', 'pedro@empresa.com', 'PL Comercial', 'meta_ads', marcio.id, 'mensagem_enviada', 3200, True, 5, 'whatsapp'),
@@ -2449,14 +2528,13 @@ def seed_data():
     ]
     now = datetime.utcnow()
     saved_leads = []
-    # Pega operadora padrão para criar cotações
     op_amil_pme = Operadora.query.filter_by(categoria='PME', nome='Amil').first()
     op_sulam_pf = Operadora.query.filter_by(categoria='PF', nome='Assim').first()
     for i, (n, p, e, c, s, oid, stage, budget, tem_cnpj, vidas, pref) in enumerate(sample_leads):
         categoria = 'PME' if tem_cnpj else 'PF'
         lead = Lead(
             name=n, phone=p, email=e, company=c, source=s,
-            source_visible_to_consultor=False,  # origem oculta para consultor
+            source_visible_to_consultor=False,
             owner_id=oid, stage=stage, budget=budget,
             tem_cnpj=tem_cnpj, categoria=categoria, vidas=vidas,
             preferencia_contato=pref,
@@ -2469,17 +2547,14 @@ def seed_data():
         db.session.flush()
         saved_leads.append(lead)
 
-        # Histórico inicial
         db.session.add(LeadStageHistory(lead_id=lead.id, user_id=oid,
                                         from_stage=None, to_stage='mensagem_enviada',
                                         entered_at=lead.created_at))
-        # Histórico de mudança para stage atual (se != mensagem_enviada)
         if stage != 'mensagem_enviada':
             db.session.add(LeadStageHistory(lead_id=lead.id, user_id=oid,
                                             from_stage='mensagem_enviada', to_stage=stage,
                                             entered_at=lead.stage_entered_at))
 
-        # Cria cotação se stage >= cotacao_enviada
         stages_with_quote = ('cotacao_enviada', 'proposta_digitada', 'em_analise',
                              'aguardando_pagamento', 'plano_fechado')
         if stage in stages_with_quote:
@@ -2498,7 +2573,6 @@ def seed_data():
                 q.data_vigencia = (now + timedelta(days=15)).date()
             db.session.add(q)
 
-        # Mensagens de exemplo
         if stage != 'mensagem_enviada':
             db.session.add(Message(
                 lead_id=lead.id, user_id=oid, direction='out',
@@ -2523,13 +2597,11 @@ def seed_data():
                 created_at=lead.created_at
             ))
 
-    # Marca Camila como remarketing (esgotou cadência)
     camila = next((l for l in saved_leads if l.name.startswith('Camila')), None)
     if camila:
         camila.moved_to_remarketing_at = now - timedelta(hours=8)
         camila.sent_without_response = 4
 
-    # Tarefas de demonstração
     db.session.add_all([
         Task(user_id=roberto.id, lead_id=saved_leads[0].id,
              title='Retornar para Carlos com a cotação detalhada',
@@ -2548,10 +2620,9 @@ def seed_data():
         Task(user_id=roberto.id, lead_id=saved_leads[5].id,
              title='Confirmar pagamento Mariana',
              kind='lembrete',
-             scheduled_at=now - timedelta(hours=1)),  # vencida (para mostrar destaque)
+             scheduled_at=now - timedelta(hours=1)),
     ])
 
-    # Configuração padrão
     rule = DistributionRule(mode='round_robin_proporcional', redistribute_offline=True, cold_after_days=3)
     db.session.add(rule)
 

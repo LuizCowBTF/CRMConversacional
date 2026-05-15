@@ -2,7 +2,7 @@
 
 ## Sistema CRM / SaaS Inteligente + Financeiro + WhatsApp + IA completo, estilo WhatsApp corporativo, focado em vendas consultivas (corretagem, consultoria).
 
-## Stack: **Flask + SQLAlchemy + SQLite + Bootstrap 5**.
+## Stack: **Flask + SQLAlchemy + MySQL + Bootstrap 5**.
 
 ### 6 abas para o corretor · Pipeline embutido na conversa · Cadência pessoal · Tarefas com pop-up · Remarketing · Anexos no chat.
 
