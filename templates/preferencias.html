@@ -12,7 +12,7 @@
 
 <div class="row g-3">
 
-  <!-- 0) DARK MODE / APARÊNCIA (NOVO) -->
+  <!-- 0) DARK MODE / APARÊNCIA -->
   <div class="col-lg-12">
     <div class="card-cv">
       <div class="card-cv-header">
@@ -20,21 +20,21 @@
         <span class="muted small">Escolha o tema do sistema</span>
       </div>
       <div class="p-3">
-        <div class="d-flex gap-3 flex-wrap">
-          <button id="themeLightBtn" class="btn btn-outline-secondary">
+        <div class="d-flex gap-3 flex-wrap" role="group" aria-label="Opções de tema">
+          <button type="button" id="themeLightBtn" class="btn btn-outline-secondary theme-option-btn" title="Tema claro">
             <i class="bi bi-sun"></i> Claro
           </button>
-          <button id="themeDarkBtn" class="btn btn-outline-secondary">
+          <button type="button" id="themeDarkBtn" class="btn btn-outline-secondary theme-option-btn" title="Tema escuro">
             <i class="bi bi-moon"></i> Escuro
           </button>
-          <button id="themeAutoBtn" class="btn btn-outline-secondary">
-            <i class="bi bi-display"></i> Automático (segundo sistema)
+          <button type="button" id="themeAutoBtn" class="btn btn-outline-secondary theme-option-btn" title="Automático (seguir sistema)">
+            <i class="bi bi-display"></i> Automático
           </button>
         </div>
         <div class="alert alert-info mt-3 mb-0 fs-12">
           <i class="bi bi-info-circle"></i>
           O tema escuro reduz o cansaço visual e economiza energia em telas OLED.
-          A cor principal da empresa (<span style="color: #fd7e14;">#fd7e14</span>) é mantida em ambos os temas.
+          A cor principal da empresa (<span class="brand-color-example">#fd7e14</span>) é mantida em ambos os temas.
         </div>
       </div>
     </div>
@@ -51,33 +51,36 @@
         <input type="hidden" name="action" value="cadence">
 
         <div class="mb-3">
-          <label class="form-label">
+          <label class="form-label" id="perDayLabelDesc">
             FUPs por dia: <b class="text-brand" id="perDayLabel">{{ u.cadence_per_day }}</b>
           </label>
           <input type="range" name="cadence_per_day" min="1" max="4" value="{{ u.cadence_per_day }}"
-                 class="form-range" oninput="document.getElementById('perDayLabel').textContent = this.value">
+                 class="form-range" aria-labelledby="perDayLabelDesc"
+                 oninput="document.getElementById('perDayLabel').textContent = this.value">
           <div class="d-flex justify-content-between small text-mute">
             <span>1× (conservador)</span><span>2×</span><span>3×</span><span>4× (agressivo)</span>
           </div>
         </div>
 
         <div class="mb-3">
-          <label class="form-label">
+          <label class="form-label" id="daysLabelDesc">
             Dias mantendo cadência: <b class="text-brand" id="daysLabel">{{ u.cadence_days }}</b>
           </label>
           <input type="range" name="cadence_days" min="1" max="3" value="{{ u.cadence_days }}"
-                 class="form-range" oninput="document.getElementById('daysLabel').textContent = this.value">
+                 class="form-range" aria-labelledby="daysLabelDesc"
+                 oninput="document.getElementById('daysLabel').textContent = this.value">
           <div class="d-flex justify-content-between small text-mute">
             <span>1 dia</span><span>2 dias</span><span>3 dias</span>
           </div>
         </div>
 
         <div class="mb-3">
-          <label class="form-label">
+          <label class="form-label" id="intervalLabelDesc">
             Intervalo mínimo entre FUPs: <b class="text-brand" id="intervalLabel">{{ u.cadence_interval_hours }}</b>h
           </label>
           <input type="range" name="cadence_interval_hours" min="1" max="12" value="{{ u.cadence_interval_hours }}"
-                 class="form-range" oninput="document.getElementById('intervalLabel').textContent = this.value">
+                 class="form-range" aria-labelledby="intervalLabelDesc"
+                 oninput="document.getElementById('intervalLabel').textContent = this.value">
           <div class="d-flex justify-content-between small text-mute">
             <span>1h</span><span>6h</span><span>12h</span>
           </div>
@@ -89,7 +92,7 @@
           Depois disso, o lead entra automaticamente em <b>Remarketing</b> para ligação.
         </div>
 
-        <button class="btn btn-brand"><i class="bi bi-check2"></i> Salvar cadência</button>
+        <button type="submit" class="btn btn-brand"><i class="bi bi-check2"></i> Salvar cadência</button>
       </form>
     </div>
   </div>
@@ -136,7 +139,7 @@
           {% endfor %}
         </div>
 
-        <button class="btn btn-brand mt-3"><i class="bi bi-check2"></i> Salvar favoritos</button>
+        <button type="submit" class="btn btn-brand mt-3"><i class="bi bi-check2"></i> Salvar favoritos</button>
       </form>
     </div>
   </div>
@@ -158,10 +161,10 @@
           <div class="snippet-item-pref">
             <div class="snippet-shortcut">{{ s.shortcut }}</div>
             <div class="snippet-body">{{ s.body }}</div>
-            <form method="post" style="margin:0;">
+            <form method="post" class="snippet-form">
               <input type="hidden" name="action" value="snippet_delete">
               <input type="hidden" name="snippet_id" value="{{ s.id }}">
-              <button class="btn btn-sm btn-ghost" title="Remover"><i class="bi bi-trash"></i></button>
+              <button type="submit" class="btn btn-sm btn-ghost" title="Remover snippet"><i class="bi bi-trash"></i></button>
             </form>
           </div>
           {% else %}
@@ -173,15 +176,15 @@
         <form method="post" class="row g-2 align-items-end mt-2 pt-3 border-top border-secondary">
           <input type="hidden" name="action" value="snippet_add">
           <div class="col-md-3">
-            <label class="form-label">Atalho</label>
-            <input type="text" name="shortcut" class="form-control form-control-dark" placeholder="/oi" required pattern="^/?[a-zA-Z0-9_-]+$">
+            <label class="form-label" for="shortcutInput">Atalho</label>
+            <input type="text" id="shortcutInput" name="shortcut" class="form-control form-control-dark" placeholder="/oi" required pattern="^/?[a-zA-Z0-9_-]+$" title="Digite o atalho começando com /">
           </div>
           <div class="col-md-8">
-            <label class="form-label">Texto</label>
-            <input type="text" name="body" class="form-control form-control-dark" placeholder="Bom dia! Tudo bem?" required>
+            <label class="form-label" for="bodyInput">Texto</label>
+            <input type="text" id="bodyInput" name="body" class="form-control form-control-dark" placeholder="Bom dia! Tudo bem?" required title="Digite o texto do snippet">
           </div>
           <div class="col-md-1">
-            <button class="btn btn-brand w-100"><i class="bi bi-plus"></i></button>
+            <button type="submit" class="btn btn-brand w-100" title="Adicionar snippet"><i class="bi bi-plus"></i></button>
           </div>
         </form>
         {% else %}
@@ -210,6 +213,32 @@
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
     }
+    updateActiveButton(theme);
+  }
+  
+  // Função para atualizar o estado ativo dos botões
+  function updateActiveButton(theme) {
+    const lightBtn = document.getElementById('themeLightBtn');
+    const darkBtn = document.getElementById('themeDarkBtn');
+    const autoBtn = document.getElementById('themeAutoBtn');
+    
+    const currentTheme = theme === 'auto' ? 'auto' : 
+      (theme || document.documentElement.getAttribute('data-theme') || 'light');
+    
+    if (lightBtn) {
+      if (currentTheme === 'light') lightBtn.classList.add('active');
+      else lightBtn.classList.remove('active');
+    }
+    
+    if (darkBtn) {
+      if (currentTheme === 'dark') darkBtn.classList.add('active');
+      else darkBtn.classList.remove('active');
+    }
+    
+    if (autoBtn) {
+      if (currentTheme === 'auto') autoBtn.classList.add('active');
+      else autoBtn.classList.remove('active');
+    }
   }
   
   // Botões da seção de aparência
@@ -218,23 +247,21 @@
   const autoBtn = document.getElementById('themeAutoBtn');
   
   if (lightBtn) {
-    lightBtn.addEventListener('click', () => setTheme('light'));
+    lightBtn.addEventListener('click', function() { setTheme('light'); });
   }
   if (darkBtn) {
-    darkBtn.addEventListener('click', () => setTheme('dark'));
+    darkBtn.addEventListener('click', function() { setTheme('dark'); });
   }
   if (autoBtn) {
-    autoBtn.addEventListener('click', () => setTheme('auto'));
+    autoBtn.addEventListener('click', function() { setTheme('auto'); });
   }
+  
+  // Inicializar estado ativo
+  const savedTheme = localStorage.getItem('theme');
+  if (savedTheme === 'light') updateActiveButton('light');
+  else if (savedTheme === 'dark') updateActiveButton('dark');
+  else updateActiveButton('auto');
 })();
 </script>
-
-<style>
-/* Ajustes extras para os botões da seção de aparência */
-#themeLightBtn:hover, #themeDarkBtn:hover, #themeAutoBtn:hover {
-  transform: scale(1.02);
-  transition: transform 0.2s ease;
-}
-</style>
 
 {% endblock %}

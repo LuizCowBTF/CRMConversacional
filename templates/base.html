@@ -22,7 +22,6 @@
     })();
   </script>
 
-
 </head>
 
 <body data-lead-id="{{ lead_id_for_js or '' }}" data-user-id="{{ current_user.id if current_user else '' }}"
@@ -143,15 +142,15 @@
         <div class="page-title">{% block page_title %}{% endblock %}</div>
         <div class="topbar-spacer"></div>
         {% block topbar_extra %}{% endblock %}
-        <button id="themeToggle" class="btn btn-link text-decoration-none" style="font-size: 1.2rem; padding: 4px 8px;"
-          title="Alternar tema claro/escuro">
+        <button id="themeToggle" class="btn btn-link text-decoration-none theme-toggle-btn"
+          title="Alternar tema claro/escuro" type="button">
           <i id="themeIcon" class="bi bi-moon-stars"></i>
         </button>
         <div class="user-chip">
           <div class="avatar">{{ current_user.name[0]|upper }}</div>
           <div>
-            <div style="line-height:1;">{{ current_user.name }}</div>
-            <div style="font-size:10.5px;color:var(--text-mute);">
+            <div class="user-name">{{ current_user.name }}</div>
+            <div class="user-role-status">
               {% if current_user.role == 'admin' %}Administrador{% else %}Consultor{% endif %}
               · <span class="status-dot {% if current_user.is_online %}online{% else %}offline{% endif %}"></span>{% if
               current_user.is_online %}Online{% else %}Offline{% endif %}

@@ -1,0 +1,25 @@
+{
+  "hints": {
+    "disown-opener": "error",
+    "https-only": "warning",
+    "no-disallowed-headers": "error",
+    "no-friendly-error-pages": "warning",
+    "no-html-only-headers": "error",
+    "no-protocol-relative-urls": "error",
+    "x-content-type-options": "error",
+    "x-frame-options": "error"
+  },
+  "browserslist": [
+    "> 0.5%",
+    "last 2 versions",
+    "not dead"
+  ],
+  "connector": {
+    "name": "local",
+    "options": {
+      "wait": 5000
+    }
+  },
+  "formatters": "stylish",
+  "rulesTimeout": 120000
+}

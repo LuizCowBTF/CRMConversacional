@@ -1,0 +1,108 @@
+# ============================================================================
+# CRM Conversacional - .gitignore
+# ============================================================================
+
+# -------------------- PYTHON --------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+.coverage.*
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+pytype-output/
+*.egg-info/
+*.egg
+MANIFEST
+
+# -------------------- FLASK / CRM --------------------
+instance/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+static/uploads/*
+!static/uploads/.gitkeep
+logs/
+*.log
+.env
+.flaskenv
+session.db
+
+# -------------------- IDE / EDITORES --------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+*.sublime-*
+.project
+.pydevproject
+.settings/
+
+# -------------------- SEGURANÇA --------------------
+*.key
+*.pem
+*.crt
+*.p12
+secrets/
+credentials/
+*.secret
+*.secrets
+
+# -------------------- DOCKER --------------------
+.docker/
+docker-compose.override.yml
+*.pid
+
+# -------------------- DEPLOY --------------------
+*.tar.gz
+*.zip
+deploy/
+dist/
+build/
+
+# -------------------- TESTES --------------------
+.pytest_cache/
+.tox/
+.coverage
+htmlcov/
+*.cover
+.coverage.*
+
+# -------------------- BACKUPS --------------------
+*.bak
+*.backup
+*.old
+*.orig
+.gitignore.backup
+
+# -------------------- FRONT-END --------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# -------------------- ARQUIVOS ESPECÍFICOS DO PROJETO --------------------
+*.pid
+dump.rdb

@@ -480,8 +480,10 @@ def filter_leads_by_visibility(query, user):
         return query
     if user.role == 'coordenador':
         return query.filter(Lead.owner_id.in_(visible_user_ids(user)))
-    if user.role in ('lider', 'admin'):
+    if user.role == 'lider':
         return query.filter(db.false())
+    if user.role == 'admin':
+        return query
     return query.filter(Lead.owner_id == user.id)
 
 
