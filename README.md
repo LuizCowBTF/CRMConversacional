@@ -165,16 +165,6 @@ DistributionRule mode, redistribute_offline, cold_after_days
 
 ---
 
-## 🚦 O que falta para produção real
-
-- Socket.IO ou SSE no lugar de polling
-- Celery beat para automações fora do request
-- MySQL + Redis
-- Multi-tenant (campo `tenant_id`)
-- Push notifications mobile via PWA
-
----
-
 ## 🔨 Desenvolvimento
 
 ### Criado e desenvolvido em família.
